@@ -162,7 +162,9 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
             "Sem temperatura da água de alimentação.",
             "Registrar a temperatura da água de alimentação.",
         )
-        estados = set(diario["estado_vapor"].dropna().astype(str)) if "estado_vapor" in diario else set()
+        estados = (
+            set(diario["estado_vapor"].dropna().astype(str)) if "estado_vapor" in diario else set()
+        )
         if "superaquecido" in estados:
             v.exigir(
                 _tem(diario, "t_vapor_c"),
