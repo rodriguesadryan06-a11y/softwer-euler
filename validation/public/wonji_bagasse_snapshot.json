@@ -1,0 +1,50 @@
+{
+  "id": "wonji_bagasse_process_control_snapshot",
+  "source": {
+    "title": "Performance Evaluation of Bagasse Fuelled Cogeneration System – The Case of Wonji-Shoa Sugar Mill",
+    "author": "Asaye Mebratu",
+    "institution": "Addis Ababa University",
+    "year": 2016,
+    "repository_url": "https://etd.aau.edu.et/items/d499f255-f077-4f4c-9f8e-2a5d6663d91c",
+    "note": "Small factual transcription of operating values reported as taken from the plant process control board; not a redistribution of the thesis."
+  },
+  "published_operating_points": {
+    "feedwater_to_boiler": {
+      "mass_flow_kg_s": 17.36,
+      "temperature_c": 96.74,
+      "pressure_bar_abs": 61.08,
+      "enthalpy_kj_kg_published": 405.39
+    },
+    "steam_to_cest_turbine": {
+      "mass_flow_kg_s": 17.36,
+      "temperature_c": 466.67,
+      "pressure_bar_abs": 61.08,
+      "enthalpy_kj_kg_published": 3412.53,
+      "state": "superheated"
+    }
+  },
+  "context_only_not_golden": {
+    "nominal_boiler_output_pressure_bar": 65,
+    "rated_boiler_efficiency_pct": 72,
+    "reported_energy_balance_efficiency_pct": 67.85,
+    "dry_flue_gas_sensible_loss_pct": 10.23
+  },
+  "do_not_treat_as_measured": {
+    "bagasse_feed_rate_kg_s": 7.24,
+    "reason": "The thesis derives this value from a recommended steam-to-bagasse ratio of 2.4; it is not presented as a direct fuel-flow measurement."
+  },
+  "euler_validation_boundary": {
+    "supported": [
+      "IF97 plausibility for a real bagasse-fired superheated-steam operating point",
+      "comparison of calculated steam enthalpy against a published steam-table value",
+      "comparison of compressed-liquid feedwater enthalpy against the published engineering value",
+      "mass-flow unit conversion"
+    ],
+    "not_supported": [
+      "full boiler efficiency reproduction from this snapshot",
+      "fuel-to-steam balance using the derived bagasse rate as if it were measured",
+      "causal diagnosis",
+      "M&V"
+    ]
+  }
+}
