@@ -36,11 +36,12 @@
   "euler_validation_boundary": {
     "supported": [
       "IF97 plausibility for a real bagasse-fired superheated-steam operating point",
-      "comparison of calculated steam enthalpy against a published steam-table value",
-      "comparison of compressed-liquid feedwater enthalpy against the published engineering value",
+      "audit of calculated steam/feedwater enthalpy against published engineering values",
+      "explicit detection of the unresolved ~2.1% steam-enthalpy discrepancy instead of widening tolerance",
       "mass-flow unit conversion"
     ],
     "not_supported": [
+      "using the published steam enthalpy as an IF97 golden until the pressure/temperature/table basis discrepancy is resolved",
       "full boiler efficiency reproduction from this snapshot",
       "fuel-to-steam balance using the derived bagasse rate as if it were measured",
       "causal diagnosis",
