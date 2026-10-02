@@ -118,24 +118,6 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
             "Sem temperatura do ar de combustão.",
             "Registrar a temperatura do ar de combustão.",
         )
-        if "ponto_gases_id" in diario:
-            usa_gases = diario["t_gases_c"].notna() | diario["o2_seco_pct"].notna()
-            pontos = diario.loc[usa_gases, "ponto_gases_id"].dropna().astype(str).str.strip()
-            pontos = {p for p in pontos if p}
-            v.exigir(
-                len(pontos) <= 1,
-                "Há leituras de gases em mais de um ponto físico.",
-                "Separar a análise por ponto de medição dos gases.",
-            )
-        if "instrumento_o2_id" in diario:
-            usa_o2 = diario["o2_seco_pct"].notna()
-            analisadores = diario.loc[usa_o2, "instrumento_o2_id"].dropna().astype(str).str.strip()
-            analisadores = {a for a in analisadores if a}
-            v.exigir(
-                len(analisadores) <= 1,
-                "Há leituras de O₂ de mais de um analisador.",
-                "Separar a análise por analisador de O₂ ou confirmar qual representa o período.",
-            )
     v.exigir(
         _tem(amos, "umidade_bu_frac"),
         "Sem umidade medida do combustível.",
