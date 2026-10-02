@@ -157,8 +157,11 @@ def balanco_por_vazoes(
     positivos = passos_h[passos_h > 0]
     if positivos.empty:
         raise AnaliseBloqueada("Os instantes não formam intervalos positivos.")
-    passo_mediano = float(positivos.median())
-    limite_gap = max_gap_factor * passo_mediano
+    # A mediana pode ser contaminada quando há pouquíssimos intervalos e um deles já é
+    # a própria lacuna. O quartil inferior representa melhor a cadência normal sem usar
+    # um mínimo extremamente sensível a jitter.
+    passo_tipico = float(positivos.quantile(0.25))
+    limite_gap = max_gap_factor * passo_tipico
 
     qv = []
     qf = []
