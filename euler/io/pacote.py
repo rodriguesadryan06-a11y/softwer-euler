@@ -165,9 +165,7 @@ def _inferir_tabela_csv(conteudo: bytes) -> str | None:
     """
     bruto, _, _ = ler_csv(conteudo, "—")
     cols = {
-        ALIASES_COLUNAS.get(str(c).strip(), str(c).strip())
-        for c in bruto.columns
-        if c != "linha"
+        ALIASES_COLUNAS.get(str(c).strip(), str(c).strip()) for c in bruto.columns if c != "linha"
     }
     candidatos = []
     for nome, tabela in TABELAS.items():
