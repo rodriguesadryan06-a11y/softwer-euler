@@ -60,6 +60,12 @@ def t_sat_c(p_bar_abs: float) -> float:
     return IAPWS97(P=p_bar_abs / 10, x=1).T - 273.15
 
 
+def h_liquido_saturado_mj_kg(p_bar_abs: float) -> float:
+    """Entalpia do líquido saturado (MJ/kg) na pressão dada, IF97."""
+    _checar_pressao(p_bar_abs)
+    return IAPWS97(P=p_bar_abs / 10, x=0).h / 1000
+
+
 def h_vapor_mj_kg(
     p_bar_abs: float,
     estado: str,
