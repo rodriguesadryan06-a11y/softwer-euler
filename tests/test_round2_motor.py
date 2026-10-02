@@ -49,9 +49,7 @@ def test_vapor_umido_com_titulo_medido_reduz_delta_h():
     assert b.titulo_vapor == pytest.approx(0.98)
     p = r.leituras["p_vapor_bar_abs"].media
     t_agua = r.leituras["t_agua_alim_c"].media
-    assert b.delta_h_mj_kg.valor == pytest.approx(
-        delta_h_mj_kg(p, "umido", t_agua, titulo=0.98)
-    )
+    assert b.delta_h_mj_kg.valor == pytest.approx(delta_h_mj_kg(p, "umido", t_agua, titulo=0.98))
     assert b.delta_h_mj_kg.valor < delta_h_mj_kg(p, "saturado_seco", t_agua)
 
 
@@ -59,9 +57,7 @@ def test_estado_do_vapor_misto_bloqueia_em_vez_de_fazer_media():
     pacote, limites = montar([Periodo(G01, dias=3)])
     diario = pacote.importacoes["diario"].dados
     ini, fim = limites[0]
-    sel = diario.index[
-        (diario["instante_observado"] >= ini) & (diario["instante_observado"] <= fim)
-    ]
+    sel = diario.index[(diario["instante_observado"] >= ini) & (diario["instante_observado"] <= fim)]
     diario.loc[sel, "estado_vapor"] = "saturado_seco"
     diario.loc[sel[len(sel) // 2 :], "estado_vapor"] = "superaquecido"
     diario.loc[sel[len(sel) // 2 :], "t_vapor_c"] = 250.0
@@ -75,9 +71,7 @@ def test_periodo_com_transitorio_nao_e_apto_para_baseline_estacionario():
     pacote, limites = montar([Periodo(G01, dias=3)])
     diario = pacote.importacoes["diario"].dados
     ini, fim = limites[0]
-    sel = diario.index[
-        (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
-    ]
+    sel = diario.index[(diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)]
     diario.loc[sel[0], "regime"] = "transitorio"
     r = resumir_periodo(pacote, ini, fim)
     assert "transitorio" in r.regimes_presentes
