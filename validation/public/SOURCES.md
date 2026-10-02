@@ -11,6 +11,10 @@ de exemplos didáticos, simulações e falhas injetadas.
 | Alitasb & Salau, Energy Reports 2024, 10.1016/j.egyr.2023.11.063 | artigo associado ao caso Wonji | biomassa/bagaço | confirma que o modelo foi obtido de dados medidos da planta; ajuda a interpretar as variáveis | artigo não substitui o arquivo bruto | referência |
 | Bureau of Energy Efficiency, *Energy Performance Assessment of Boilers* | benchmark publicado de ensaio direto | carvão | vazão de vapor, pressão, entalpias, carvão, GCV e eficiência publicada | eficiência está em **GCV/HHV**, enquanto a EULER atual usa **PCI/LHV** | **checagem independente das entalpias, não da eficiência** |
 | OP-50, Applied Thermal Engineering (dados 2019) | dados medidos descritos no artigo, 1 min | carvão | pressão/vazão/T de vapor, água, ar, gases e O₂ por meses | série bruta não foi localizada publicamente nesta rodada | candidato se conseguirmos autorização/arquivo |
+| Mebratu, Addis Ababa University 2016, *Wonji-Shoa Sugar Mill* | **snapshot real de process control board** | biomassa/bagaço | vazão, pressão, temperatura e entalpia publicadas para água de alimentação e vapor superaquecido | é um snapshot, não série temporal; vazão de bagaço de 7,24 kg/s é derivada no trabalho, não medição direta | **materializado como benchmark termodinâmico + testes** |
+| Haeruman, KFUPM MSc 2025 | **real industrial**, 21.600 pontos a 1 s, 21 variáveis, caldeira a gás natural da Saudi Aramco | gás natural | água, vapor, combustível, ar, pressão/temperatura do drum, O₂ e outras variáveis descritas | o texto da tese é público, mas o arquivo bruto do dataset não foi localizado para redistribuição/reteste | candidato prioritário se o arquivo for disponibilizado |
+| Boiler #8 / Energies 2025 | **real industrial**, 172.804 registros agregados a 1 min, 54 variáveis | gases de processo | vazões e poder calorífico dos combustíveis, combustão e geração de potência | artigo descreve o conjunto, mas a série bruta não foi localizada publicamente nesta rodada | referência de cobertura de variáveis |
+| DOE/NETL 2004, teste de caldeira | **dados medidos de ensaio**, PI a 1 min com médias por período | carvão | vapor, combustível, gases, ar, CEMS, O₂, análise de combustível e carbono em cinza | relatório publica resumos de ensaio, não uma série bruta reutilizável completa | benchmark/candidato para casos de ensaio |
 
 ## Descobertas importantes para o desenho do produto
 
@@ -24,6 +28,11 @@ de exemplos didáticos, simulações e falhas injetadas.
    não convertido silenciosamente.
 4. **Base calorífica importa.** Benchmarks em GCV/HHV não podem ser usados como golden de um
    cálculo em PCI/LHV sem conversão física documentada.
-5. O primeiro piloto industrial continua necessário: nenhum conjunto público encontrado nesta
+5. **Dois tipos de validação externa já estão cobertos:** telemetria contínua real (Zhejiang)
+   e snapshot termodinâmico real de biomassa (Wonji). Eles testam partes diferentes do motor.
+6. Há conjuntos reais descritos com cobertura muito mais próxima do ideal (gás natural/KFUPM e
+   Boiler #8), mas sem arquivo bruto público localizado não entram como fixture: descrição de
+   artigo não vira dado inventado.
+7. O primeiro piloto industrial continua necessário: nenhum conjunto público encontrado nesta
    rodada contém simultaneamente combustível medido/qualificado, vapor, água de alimentação,
    instrumentação, eventos de intervenção e M&V suficientes para validar a cadeia inteira.
