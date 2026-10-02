@@ -180,6 +180,17 @@ def mapear_planta(pacote: Pacote) -> PerfilPlanta:
         ),
         _avaliar_rota(
             obs,
+            "entalpia_vapor",
+            "Fluxo de entalpia do vapor",
+            "Qual é o fluxo de entalpia no ponto de medição do vapor?",
+            (
+                ("vazão + P + T", ("vazao_vapor_t_h", "p_vapor_bar_abs", "t_vapor_c")),
+                ("vazão + P + estado", ("vazao_vapor_t_h", "p_vapor_bar_abs", "estado_vapor")),
+            ),
+            "Não é a energia útil da caldeira: sem a condição de entrada da água, não fecha o duty.",
+        ),
+        _avaliar_rota(
+            obs,
             "energia_vapor",
             "Energia útil do vapor",
             "Quanta energia saiu como vapor?",
@@ -220,6 +231,15 @@ def mapear_planta(pacote: Pacote) -> PerfilPlanta:
                         "t_agua_alim_c",
                         "vazao_combustivel_kg_h",
                         "pci_combustivel_mj_kg",
+                    ),
+                ),
+                (
+                    "historiador + potência térmica do combustível",
+                    (
+                        "vazao_vapor_t_h",
+                        "p_vapor_bar_abs",
+                        "t_agua_alim_c",
+                        "potencia_combustivel_mw",
                     ),
                 ),
                 (
