@@ -122,6 +122,8 @@ class Indireto:
 def _entradas_indireto(
     r: ResumoPeriodo, umidade: float | None = None
 ) -> dict[str, float] | AnaliseBloqueada:
+    if "ponto_gases" in r.bloqueios:
+        return r.bloqueios["ponto_gases"]
     faltas = []
     for chave, nome in (
         ("t_gases_c", "temperatura dos gases"),
@@ -828,16 +830,19 @@ def investigar(
             "excesso_ar",
             titulo(
                 c_o2,
-                "Mais excesso de ar (O₂ maior nos gases)",
-                "Menos excesso de ar (O₂ menor nos gases)",
-                "Excesso de ar diferente (O₂ nos gases)",
+                "O₂ maior / maior diluição aparente dos gases",
+                "O₂ menor / menor diluição aparente dos gases",
+                "O₂ diferente nos gases",
             ),
             st,
             av,
             porque,
-            "Conferir a calibração do analisador de O₂, a base da medição (seca ou úmida) e "
-            "comparar com uma medição portátil no mesmo ponto.",
-            "Uma fonte: o analisador de O₂ (caminho indireto).",
+            "Conferir a calibração do analisador de O₂, a base da medição (seca ou úmida), "
+            "o ponto físico e comparar com uma medição portátil no mesmo ponto. Se a leitura se "
+            "confirmar, comparar O₂ em pontos a montante e a jusante para separar excesso de ar "
+            "na combustão de entrada de ar falso no caminho dos gases.",
+            "Uma fonte: o analisador de O₂ (caminho indireto). O₂ maior, sozinho, não separa "
+            "excesso de ar na combustão de entrada de ar falso após a zona de combustão.",
             ("O₂ nos gases",),
             ef_o2,
             por_perda(ef_o2),
@@ -1420,6 +1425,7 @@ def investigar(
             "rotulo": r.rotulo(),
             "leituras_diario": r.n_leituras_diario,
             "cobertura_diario": r.cobertura_diario,
+            "ponto_gases_id": r.ponto_gases_id,
             "vapor_t": _grandeza_json(r.vapor_t),
             "energia_util": {
                 "metodo": b.metodo_energia_util,
