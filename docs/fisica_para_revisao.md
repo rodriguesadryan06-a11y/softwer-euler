@@ -81,7 +81,7 @@ Peça ao revisor: recalcular **G01, G05 e G10 de forma independente** (planilha,
 `Q_s = Σ M_s · (h_s(p, T ou x) − h_a(p, T_a))`, entalpias pela IAPWS-IF97.
 - Pressão manométrica → absoluta: `p_abs = p_man + p_atm(local)`. Qual `p_atm` usar sem barômetro (altitude do local)?
 - Referência: 10 bar abs, vapor saturado seco, água de alimentação a 80 °C → **Δh = 2,4414 MJ/kg**; T_sat = 179,89 °C.
-- Pergunta: como tratar o título do vapor (x < 1) quando não há medição? Hoje: assumido x = 1, marcado como `assumido`.
+- Implementação atual: se `estado_vapor` for registrado como `superaquecido`, usa `t_vapor_c`; se for `umido`, exige `titulo_vapor_frac`; se o estado não for registrado, mantém x = 1 como hipótese explícita `assumido`. Estados diferentes ou registro parcial no mesmo período bloqueiam o balanço, em vez de serem combinados.
 Revisor: ☐ ☐ ☐ ☐ · Observações:
 
 **E9 · Combustível queimado no período**
