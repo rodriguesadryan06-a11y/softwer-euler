@@ -122,8 +122,9 @@ class Indireto:
 def _entradas_indireto(
     r: ResumoPeriodo, umidade: float | None = None
 ) -> dict[str, float] | AnaliseBloqueada:
-    if "ponto_gases" in r.bloqueios:
-        return r.bloqueios["ponto_gases"]
+    for chave_bloqueio in ("ponto_gases", "instrumento_o2"):
+        if chave_bloqueio in r.bloqueios:
+            return r.bloqueios[chave_bloqueio]
     faltas = []
     for chave, nome in (
         ("t_gases_c", "temperatura dos gases"),
@@ -1426,6 +1427,7 @@ def investigar(
             "leituras_diario": r.n_leituras_diario,
             "cobertura_diario": r.cobertura_diario,
             "ponto_gases_id": r.ponto_gases_id,
+            "instrumento_o2_id": r.instrumento_o2_id,
             "vapor_t": _grandeza_json(r.vapor_t),
             "energia_util": {
                 "metodo": b.metodo_energia_util,
