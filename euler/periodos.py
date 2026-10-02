@@ -38,6 +38,8 @@ LEITURAS_DIARIO = {
     "t_ar_c": "°C",
     "t_agua_alim_c": "°C",
     "p_vapor_bar_abs": "bar abs",
+    "t_vapor_c": "°C",
+    "titulo_vapor_frac": "fração",
 }
 ELEMENTOS = ("C", "H", "O", "N", "S")
 TOLERANCIA_INSTANTE = pd.Timedelta(minutes=1)
@@ -52,6 +54,8 @@ INSTRUMENTOS = {
     "t_gases_c": (("gases",), ("termopar", "temperatura dos gases")),
     "o2_seco_pct": (("o2",), ("o₂", "o2", "oxigênio")),
     "p_vapor_bar_abs": (("manometro", "pressao"), ("manômetro", "manometro", "pressão")),
+    "t_vapor_c": (("vapor_temperatura", "termometro_vapor"), ("temperatura do vapor",)),
+    "titulo_vapor_frac": (("titulo_vapor", "qualidade_vapor"), ("título do vapor", "titulo do vapor")),
     "t_agua_alim_c": (("agua",), ("água de alimentação", "agua de alimentacao")),
     "t_ar_c": (("ar_combustao", "temperatura_ar"), ("ar de combustão",)),
     "pci_seco": (("calorimetro", "pci"), ("calorímetro", "calorimetro", "poder calorífico")),
@@ -62,6 +66,8 @@ ROTULO_LEITURA = {
     "t_gases_c": "temperatura dos gases",
     "o2_seco_pct": "O₂ nos gases",
     "p_vapor_bar_abs": "pressão do vapor",
+    "t_vapor_c": "temperatura do vapor",
+    "titulo_vapor_frac": "título do vapor",
     "t_agua_alim_c": "temperatura da água de alimentação",
     "t_ar_c": "temperatura do ar de combustão",
 }
@@ -109,7 +115,7 @@ def buscar_instrumento(
     u, como = incerteza_padrao(float(linha["incerteza_declarada"]), tipo_decl, k)
     unidade = str(linha["unidade"]).lower()
     relativa = unidade == "pct_da_leitura"
-    if relativa or grandeza == "umidade" and unidade.startswith("pct"):
+    if relativa or grandeza in ("umidade", "titulo_vapor_frac") and unidade.startswith("pct"):
         u /= 100
     return Instrumento(str(linha["instrumento_id"]), str(linha["tipo"]), u, relativa, como)
 
@@ -190,6 +196,8 @@ class ResumoPeriodo:
     cobertura_diario: float | None = None
     ponto_gases_id: str | None = None
     instrumento_o2_id: str | None = None
+    estado_vapor: str = "saturado_seco"
+    estado_vapor_origem: str = "assumido"
     vapor_t: Grandeza | None = None
     energia_util_intervalos_gj: float | None = None
     combustivel_kg: Grandeza | None = None
@@ -369,9 +377,14 @@ def _vapor(pacote: Pacote, diario: pd.DataFrame, r: ResumoPeriodo) -> None:
 
 
 def _energia_util_intervalos(tot: pd.DataFrame, r: ResumoPeriodo, escala: float) -> None:
-    """Q_s = Σ ΔM_k · Δh(p_k, T_a,k) (E8), intervalo a intervalo entre leituras do
-    totalizador, com p e T_a médias das duas leituras do intervalo. Só é usado quando
-    todos os intervalos têm pressão e água de alimentação; senão fica None (D46)."""
+    """Q_s = Σ ΔM_k · Δh_k (E8), intervalo a intervalo.
+
+    O estado do vapor é o estado único do período. Para vapor superaquecido ou úmido,
+    a temperatura ou o título precisam acompanhar os intervalos; caso contrário o
+    cálculo integrado fica indisponível e o balanço cai para as condições médias.
+    """
+    if "estado_vapor" in r.bloqueios:
+        return
     soma, cobertos = 0.0, 0
     linhas = list(tot.itertuples())
     for ant, atual in pairwise(linhas):
@@ -383,8 +396,26 @@ def _energia_util_intervalos(tot: pd.DataFrame, r: ResumoPeriodo, escala: float)
             continue
         if p.empty or t.empty:
             continue
+        tv = None
+        titulo = None
+        if r.estado_vapor == "superaquecido":
+            valores = pd.Series([ant.t_vapor_c, atual.t_vapor_c]).dropna()
+            if valores.empty:
+                continue
+            tv = float(valores.mean())
+        elif r.estado_vapor == "umido":
+            valores = pd.Series([ant.titulo_vapor_frac, atual.titulo_vapor_frac]).dropna()
+            if valores.empty:
+                continue
+            titulo = float(valores.mean())
         try:
-            soma += massa * delta_h_mj_kg(float(p.mean()), "saturado_seco", float(t.mean()))
+            soma += massa * delta_h_mj_kg(
+                float(p.mean()),
+                r.estado_vapor,
+                float(t.mean()),
+                t_vapor_c=tv,
+                titulo=titulo,
+            )
         except AnaliseBloqueada:
             continue
         cobertos += 1
@@ -811,6 +842,24 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         operando = no_periodo[no_periodo["regime"].fillna("estavel") != "parada"]
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
         r.n_leituras_diario = len(operando)
+
+        estados = tuple(
+            dict.fromkeys(
+                str(x).strip()
+                for x in operando["estado_vapor"].dropna()
+                if str(x).strip()
+            )
+        )
+        if len(estados) == 1:
+            r.estado_vapor = estados[0]
+            r.estado_vapor_origem = "registrado"
+        elif len(estados) > 1:
+            r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                "Há mais de um estado do vapor registrado no mesmo período "
+                f"({', '.join(estados)}). A EULER não combina estados termodinâmicos diferentes "
+                "num único balanço.",
+                ["separar o período por estado do vapor ou revisar o registro do estado"],
+            )
 
         # Temperatura e O₂ só podem alimentar o caminho indireto quando pertencem a uma
         # mesma fronteira física. Misturar, por exemplo, saída da caldeira e pós-economizador
