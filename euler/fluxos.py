@@ -199,8 +199,8 @@ def balanco_por_vazoes(
         raise AnaliseBloqueada("Nenhum intervalo comum válido para fechar o balanço por vazões.")
     if cobertura < cobertura_minima:
         raise AnaliseBloqueada(
-            f"Cobertura comum insuficiente para o balanço por vazões ({100*cobertura:.0f}%).",
-            [f"cobertura de ao menos {100*cobertura_minima:.0f}% nos mesmos intervalos"],
+            f"Cobertura comum insuficiente para o balanço por vazões ({100 * cobertura:.0f}%).",
+            [f"cobertura de ao menos {100 * cobertura_minima:.0f}% nos mesmos intervalos"],
         )
     eta = ev / ef
     if not isfinite(eta) or eta <= 0:
