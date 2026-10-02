@@ -1,9 +1,12 @@
 """Saúde da caldeira: consumo por tonelada de vapor período a período, eventos e selo (D65).
 
-Painel logo depois de carregar os dados. Não faz conta nova: para cada período entre
-medições de estoque usa o consumo específico do balanço direto (combustível queimado ÷
-vapor, E9) e compara com a referência pela mesma regra da Investigação (`comparar`, U = 2u
-da diferença, D25/D37).
+Painel logo depois de carregar os dados. O selo principal continua usando, para cada período
+entre medições de estoque, o consumo específico do balanço direto (combustível queimado ÷
+vapor, E9) e a mesma regra da Investigação (`comparar`, U = 2u da diferença, D25/D37).
+
+Como camada secundária (D70), quando a referência contém períodos explicitamente estáveis,
+é ajustado um baseline simples por carga. Ele não muda o selo, não extrapola e não atribui
+causa ao residual.
 
 Referência = a primeira metade dos períodos (a mesma escolha padrão da tela Investigação).
 Cada período depois dela recebe um estado:
