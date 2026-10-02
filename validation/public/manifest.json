@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "zhejiang_cfb_real_sample",
+  "materialized_rows": 20,
+  "provenance": {
+    "original_paper": {
+      "title": "A long-tailed distribution time-series dataset in boiler equipment",
+      "doi": "10.1038/s41597-025-05096-4",
+      "original_repository": "https://doi.org/10.6084/m9.figshare.28868849",
+      "license": "CC0",
+      "facts": [
+        "coal-fired industrial boiler at a chemical plant in Zhejiang, China",
+        "data collected from 2022-03-27 to 2022-04-01 at 5 s intervals",
+        "86,400 samples and 30 variables",
+        "boiler outlet steam temperature 530-545 °C is reported as the normal range"
+      ]
+    },
+    "materialized_source": {
+      "title": "CFB Boiler Synthetic Fault Dataset",
+      "url": "https://huggingface.co/datasets/josh23415612/cfb-boiler-synthetic-fault-dataset",
+      "license": "CC BY 4.0",
+      "selection": "rows 0-19 from the dataset viewer; the dataset card states rows 0-599 are real operational data and rows 600-1319 are synthetic fault injection",
+      "note": "Only the real, label=normal prefix is materialized here. No injected-fault rows are included."
+    }
+  },
+  "source_units": {
+    "steam_pressure": "psig",
+    "steam_temperature": "degF",
+    "steam_flow": "kpph",
+    "flue_gas_temp": "degF",
+    "flue_gas_o2_left": "percent",
+    "flue_gas_o2_right": "percent"
+  },
+  "conversions": {
+    "steam_pressure_bar_abs": "psig * 0.0689475729 + 1.01325",
+    "steam_temperature_c": "(degF - 32) * 5/9",
+    "steam_flow_t_h": "kpph * 0.45359237",
+    "flue_gas_temp_c": "(degF - 32) * 5/9"
+  },
+  "validation_boundary": {
+    "supported": [
+      "real-telemetry parsing and unit conversion",
+      "IF97 superheated-steam state calculation",
+      "physical plausibility checks for O2, pressure, temperature and steam flow",
+      "import of a public real-data slice into the EULER diary schema after explicit conversion"
+    ],
+    "not_supported": [
+      "full fuel-to-steam efficiency validation because this public slice has no fuel mass/PCI/moisture and no feedwater temperature",
+      "causal diagnosis or M&V",
+      "fouling diagnosis",
+      "stack-loss calculation because O2 and flue-gas temperature are published at different economizer locations in the source metadata"
+    ]
+  }
+}
