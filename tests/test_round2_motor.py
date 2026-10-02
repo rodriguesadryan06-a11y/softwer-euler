@@ -15,7 +15,6 @@ from euler.tipos import AnaliseBloqueada
 from euler.transferencia import ua_economizador
 from euler.vapor import delta_h_mj_kg
 
-
 G01 = 11.773
 
 
