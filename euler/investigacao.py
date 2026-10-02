@@ -958,9 +958,8 @@ def investigar(
                 if nr in b_ref.eficiencia_cenarios and nc in b_comp.eficiencia_cenarios
             ]
             faixa_residuo = (min(plaus), max(plaus))
-    purgas_registradas = (
-        (ref.purgas_n is not None or ref.massa_purga_kg is not None)
-        and (comp.purgas_n is not None or comp.massa_purga_kg is not None)
+    purgas_registradas = (ref.purgas_n is not None or ref.massa_purga_kg is not None) and (
+        comp.purgas_n is not None or comp.massa_purga_kg is not None
     )
     purgas_quantificadas = (
         b_ref.perda_purga_pct_pci is not None and b_comp.perda_purga_pct_pci is not None
@@ -1199,7 +1198,9 @@ def investigar(
     if not purgas_registradas:
         falta.append("registro de purgas nos dois períodos")
     if not purgas_quantificadas:
-        falta.append("massa purgada nos dois períodos para quantificar a perda energética por purga")
+        falta.append(
+            "massa purgada nos dois períodos para quantificar a perda energética por purga"
+        )
     # incertezas necessárias não informadas (A3): em instrumentos.csv
     for g in (
         b_ref.eficiencia, b_comp.eficiencia, b_ref.consumo_t_por_t, b_comp.consumo_t_por_t,
