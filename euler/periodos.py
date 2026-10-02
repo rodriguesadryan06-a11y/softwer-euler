@@ -55,7 +55,10 @@ INSTRUMENTOS = {
     "o2_seco_pct": (("o2",), ("o₂", "o2", "oxigênio")),
     "p_vapor_bar_abs": (("manometro", "pressao"), ("manômetro", "manometro", "pressão")),
     "t_vapor_c": (("vapor_temperatura", "termometro_vapor"), ("temperatura do vapor",)),
-    "titulo_vapor_frac": (("titulo_vapor", "qualidade_vapor"), ("título do vapor", "titulo do vapor")),
+    "titulo_vapor_frac": (
+        ("titulo_vapor", "qualidade_vapor"),
+        ("título do vapor", "titulo do vapor"),
+    ),
     "t_agua_alim_c": (("agua",), ("água de alimentação", "agua de alimentacao")),
     "t_ar_c": (("ar_combustao", "temperatura_ar"), ("ar de combustão",)),
     "pci_seco": (("calorimetro", "pci"), ("calorímetro", "calorimetro", "poder calorífico")),
@@ -845,11 +848,7 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
 
         estado_series = operando["estado_vapor"].replace("", pd.NA)
         estados = tuple(
-            dict.fromkeys(
-                str(x).strip()
-                for x in estado_series.dropna()
-                if str(x).strip()
-            )
+            dict.fromkeys(str(x).strip() for x in estado_series.dropna() if str(x).strip())
         )
         if estados and estado_series.notna().sum() != len(operando):
             r.bloqueios["estado_vapor"] = AnaliseBloqueada(
