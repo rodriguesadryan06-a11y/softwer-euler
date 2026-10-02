@@ -23,9 +23,10 @@ ARQUIVO_CONTRATO = RAIZ / "docs" / "contrato_dados.md"
 ARQUIVO_PLANILHA = PASTA_MODELOS / "planilha_modelo_euler.xlsx"
 
 REGRAS_GERAIS = """\
-- **Um arquivo por tabela**, com o nome exato (`diario.csv`, `combustivel.csv`, `amostras.csv`,
-  `eventos.csv`, `instrumentos.csv`), **ou** uma planilha `.xlsx` com uma aba por tabela
-  (modelo: `templates/planilha_modelo_euler.xlsx`).
+- **Formato recomendado:** um arquivo por tabela (`diario.csv`, `combustivel.csv`,
+  `amostras.csv`, `eventos.csv`, `instrumentos.csv`) ou uma planilha `.xlsx` com uma aba
+  por tabela. Um CSV com outro nome também pode ser reconhecido pelo cabeçalho quando a tabela
+  for inequívoca; aliases só são aceitos quando a unidade está explícita no nome.
 - **Separador:** vírgula (`,`) ou ponto-e-vírgula (`;`, padrão do Excel em português). Com
   ponto-e-vírgula, números podem usar vírgula decimal (`182,5`). Codificação UTF-8 ou Windows.
 - **Vazio = não medido.** Nunca escreva 0 para "não medido". `-`, `s/d` e `n/a` também são
