@@ -827,8 +827,10 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
                 "Há leituras de gases em mais de um ponto no mesmo período "
                 f"({', '.join(pontos)}). A EULER não mistura pontos físicos diferentes.",
                 [
-                    "selecionar um único ponto de medição dos gases para o período "
-                    "ou analisar cada ponto separadamente"
+                    (
+                        "selecionar um único ponto de medição dos gases para o período "
+                        "ou analisar cada ponto separadamente"
+                    )
                 ],
             )
         if r.horas > 0 and len(no_periodo):
@@ -847,8 +849,10 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
                 f"({', '.join(id_o2)}). A EULER não atribui a média à incerteza de um único "
                 "instrumento.",
                 [
-                    "separar as leituras por analisador de O₂ ou confirmar qual instrumento "
-                    "representa o período"
+                    (
+                        "separar as leituras por analisador de O₂ ou confirmar qual instrumento "
+                        "representa o período"
+                    )
                 ],
             )
         for coluna in r.leituras:
