@@ -958,7 +958,13 @@ def investigar(
                 if nr in b_ref.eficiencia_cenarios and nc in b_comp.eficiencia_cenarios
             ]
             faixa_residuo = (min(plaus), max(plaus))
-    purgas_registradas = ref.purgas_n is not None and comp.purgas_n is not None
+    purgas_registradas = (
+        (ref.purgas_n is not None or ref.massa_purga_kg is not None)
+        and (comp.purgas_n is not None or comp.massa_purga_kg is not None)
+    )
+    purgas_quantificadas = (
+        b_ref.perda_purga_pct_pci is not None and b_comp.perda_purga_pct_pci is not None
+    )
     av_res = {
         "mudanca_detectavel": None,
         "relevante": None,
@@ -1020,6 +1026,12 @@ def investigar(
                 f"O balanço direto mostra {_sinal(residuo)} p.p. de perda além do que a chaminé "
                 f"explica (incerteza {texto_u}). Pode ser purga, casco, vazamento de vapor ou "
                 "combustão incompleta: os registros atuais não separam essas causas."
+                + (
+                    " A purga tem estimativa energética separada, mas ainda não entra neste "
+                    "resíduo porque sua incerteza não foi fechada."
+                    if purgas_quantificadas
+                    else ""
+                )
             )
             if nivel == "condicional":
                 porque += (
@@ -1046,8 +1058,8 @@ def investigar(
             st_res,
             av_res,
             porque,
-            "Registrar número e duração das purgas em todos os turnos, medir CO nos gases e "
-            "procurar vazamentos de vapor e de condensado.",
+            "Medir a massa purgada (número e duração sozinhos não determinam energia), medir CO "
+            "nos gases e procurar vazamentos de vapor e de condensado.",
             "Diferença entre os dois caminhos (direto e indireto), que compartilham a umidade.",
             ("balanço direto", "perda nos gases", "purgas"),
             residuo,
@@ -1185,7 +1197,9 @@ def investigar(
         if ind.bloqueio is not None:
             falta += ind.bloqueio.falta
     if not purgas_registradas:
-        falta.append("registro de purgas (número e duração) nos dois períodos")
+        falta.append("registro de purgas nos dois períodos")
+    if not purgas_quantificadas:
+        falta.append("massa purgada nos dois períodos para quantificar a perda energética por purga")
     # incertezas necessárias não informadas (A3): em instrumentos.csv
     for g in (
         b_ref.eficiencia, b_comp.eficiencia, b_ref.consumo_t_por_t, b_comp.consumo_t_por_t,
@@ -1461,7 +1475,23 @@ def investigar(
             "perda_gases": _grandeza_json(i.perda),
             "preco_brl_t": r.preco_brl_t,
             "preco_brl_gj": r.preco_brl_gj,
+            "regimes_presentes": list(r.regimes_presentes),
+            "apto_baseline_carga": r.apto_baseline_carga,
             "purgas_n": r.purgas_n,
+            "purgas_s": r.purgas_s,
+            "massa_purga_kg": r.massa_purga_kg,
+            "energia_purga": _grandeza_json(b.energia_purga_gj),
+            "perda_purga_pct_pci": b.perda_purga_pct_pci,
+            "economizador": {
+                "q_mw": r.q_economizador_mw,
+                "ua_aparente_mw_k": r.ua_economizador_mw_k,
+                "nota": (
+                    "UA aparente é indicador de transferência, não prova de fouling; interpretar "
+                    "com carga, bypass, sootblowing e diferença de pressão."
+                    if r.ua_economizador_mw_k is not None
+                    else None
+                ),
+            },
             "eventos": [
                 {
                     "instante": e["instante"].isoformat(),
