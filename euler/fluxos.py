@@ -133,9 +133,9 @@ def balanco_por_vazoes(
             qv.append(float("nan"))
             qf.append(float("nan"))
             validos.append(False)
-    d["_qv"] = qv
-    d["_qf"] = qf
-    d["_valido"] = validos
+    d["qv_mw"] = qv
+    d["qf_mw"] = qf
+    d["valido_balanco"] = validos
 
     ev = ef = 0.0
     horas = 0.0
@@ -143,12 +143,12 @@ def balanco_por_vazoes(
     rows = list(d.itertuples(index=False))
     for a, b in zip(rows[:-1], rows[1:], strict=True):
         dt_h = (b.instante_observado - a.instante_observado).total_seconds() / 3600
-        if dt_h <= 0 or dt_h > limite_gap or not (a._valido and b._valido):
+        if dt_h <= 0 or dt_h > limite_gap or not (a.valido_balanco and b.valido_balanco):
             pulados += 1
             continue
         # MW × h × 3,6 = GJ
-        ev += 0.5 * (a._qv + b._qv) * dt_h * 3.6
-        ef += 0.5 * (a._qf + b._qf) * dt_h * 3.6
+        ev += 0.5 * (a.qv_mw + b.qv_mw) * dt_h * 3.6
+        ef += 0.5 * (a.qf_mw + b.qf_mw) * dt_h * 3.6
         horas += dt_h
         usados += 1
 
