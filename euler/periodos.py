@@ -38,6 +38,14 @@ LEITURAS_DIARIO = {
     "t_ar_c": "°C",
     "t_agua_alim_c": "°C",
     "p_vapor_bar_abs": "bar abs",
+    "t_vapor_c": "°C",
+    "titulo_vapor": "fração",
+    "vazao_agua_alim_t_h": "t/h",
+    "t_agua_eco_entrada_c": "°C",
+    "t_agua_eco_saida_c": "°C",
+    "t_gases_eco_entrada_c": "°C",
+    "t_gases_eco_saida_c": "°C",
+    "dp_gases_mbar": "mbar",
 }
 ELEMENTOS = ("C", "H", "O", "N", "S")
 TOLERANCIA_INSTANTE = pd.Timedelta(minutes=1)
@@ -52,6 +60,8 @@ INSTRUMENTOS = {
     "t_gases_c": (("gases",), ("termopar", "temperatura dos gases")),
     "o2_seco_pct": (("o2",), ("o₂", "o2", "oxigênio")),
     "p_vapor_bar_abs": (("manometro", "pressao"), ("manômetro", "manometro", "pressão")),
+    "t_vapor_c": (("temperatura_vapor", "vapor_temp"), ("temperatura do vapor",)),
+    "titulo_vapor": (("titulo_vapor", "qualidade_vapor"), ("título do vapor", "titulo do vapor")),
     "t_agua_alim_c": (("agua",), ("água de alimentação", "agua de alimentacao")),
     "t_ar_c": (("ar_combustao", "temperatura_ar"), ("ar de combustão",)),
     "pci_seco": (("calorimetro", "pci"), ("calorímetro", "calorimetro", "poder calorífico")),
@@ -62,6 +72,8 @@ ROTULO_LEITURA = {
     "t_gases_c": "temperatura dos gases",
     "o2_seco_pct": "O₂ nos gases",
     "p_vapor_bar_abs": "pressão do vapor",
+    "t_vapor_c": "temperatura do vapor",
+    "titulo_vapor": "título do vapor",
     "t_agua_alim_c": "temperatura da água de alimentação",
     "t_ar_c": "temperatura do ar de combustão",
 }
@@ -190,6 +202,11 @@ class ResumoPeriodo:
     cobertura_diario: float | None = None
     ponto_gases_id: str | None = None
     instrumento_o2_id: str | None = None
+    regimes_presentes: tuple[str, ...] = ()
+    apto_baseline_carga: bool = False
+    estado_vapor: str = "saturado_seco"
+    estado_vapor_origem: str = "assumido"
+    titulo_vapor: float | None = 1.0
     vapor_t: Grandeza | None = None
     energia_util_intervalos_gj: float | None = None
     combustivel_kg: Grandeza | None = None
@@ -212,6 +229,7 @@ class ResumoPeriodo:
     umidade_por_fornecedor: dict[str, float] = field(default_factory=dict)
     purgas_n: float | None = None
     purgas_s: float | None = None
+    massa_purga_kg: float | None = None
     eventos: list[dict] = field(default_factory=list)
     bloqueios: dict[str, AnaliseBloqueada] = field(default_factory=dict)
 
