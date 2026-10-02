@@ -79,8 +79,7 @@ def test_importador_euler_aceita_recorte_real_apos_conversao_explicita(real):
             "linha": range(2, len(real) + 2),
             "caldeira_id": "PUBLIC-ZHEJIANG-CFB",
             "instante_observado": [
-                (inicio + pd.Timedelta(seconds=5 * int(i))).isoformat()
-                for i in real["source_row"]
+                (inicio + pd.Timedelta(seconds=5 * int(i))).isoformat() for i in real["source_row"]
             ],
             "regime": "estavel",
             "p_vapor_bar_man": real["steam_pressure_psig"] * PSI_PARA_BAR,
