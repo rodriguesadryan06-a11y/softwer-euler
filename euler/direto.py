@@ -31,6 +31,7 @@ from iapws import IAPWS97
 
 from euler.incerteza import Componente, Falta, Orcamento
 from euler.periodos import ROTULO_LEITURA, ResumoPeriodo
+from euler.purga import energia_purga_gj
 from euler.tipos import AnaliseBloqueada, Grandeza
 from euler.vapor import delta_h_mj_kg
 
@@ -76,6 +77,8 @@ class BalancoDireto:
     energia_util_gj: Grandeza | None = None
     metodo_energia_util: str | None = None
     energia_combustivel_gj: Grandeza | None = None
+    energia_purga_gj: Grandeza | None = None
+    perda_purga_pct_pci: float | None = None
     eficiencia: Grandeza | None = None
     eficiencia_cenarios: dict[str, float] | None = None
     consumo_t_por_t: Grandeza | None = None
@@ -277,6 +280,34 @@ def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
         b.energia_combustivel_gj = _grandeza(
             e, "GJ", comb.orcamento.mais(pci.orcamento), "cenário 'o que entra é o que queima'"
         )
+
+    p_purga = r.leituras.get("p_purga_bar_abs")
+    if r.massa_purga_kg is not None and p_purga is not None and t_agua is not None:
+        try:
+            q_purga = energia_purga_gj(
+                massa_purga_kg=r.massa_purga_kg,
+                p_bar_abs=p_purga.media,
+                t_agua_referencia_c=t_agua.media,
+            )
+            orc_purga = Orcamento(
+                faltam=[
+                    Falta("incerteza da massa purgada"),
+                    Falta("incerteza das condições termodinâmicas da purga", False),
+                ]
+            )
+            b.energia_purga_gj = Grandeza(
+                q_purga,
+                "GJ",
+                "estimado",
+                None,
+                "massa purgada medida × diferença de entalpia; líquido saturado à pressão "
+                "medida no ponto de purga, sem crédito de recuperação de calor/flash",
+                orc_purga,
+            )
+            if b.energia_combustivel_gj is not None and b.energia_combustivel_gj.valor > 0:
+                b.perda_purga_pct_pci = 100 * q_purga / b.energia_combustivel_gj.valor
+        except AnaliseBloqueada as bloqueio:
+            b.bloqueios.append(bloqueio)
 
     if vapor is None or comb is None:
         return b
