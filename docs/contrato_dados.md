@@ -55,6 +55,15 @@ Uma linha por leitura do operador (ou do sistema) na caldeira.
 | `estado_vapor` | — | não | Estado termodinâmico do vapor na linha medida. Se vazio, a EULER mantém a hipótese conservadora atual de vapor saturado seco e marca essa hipótese como assumida. Valores: `saturado_seco`, `umido`, `superaquecido`. |  |  |
 | `t_vapor_c` | °C | não | Temperatura do vapor quando o estado registrado é superaquecido. |  | 50 a 650 |
 | `titulo_vapor_frac` | fração | não | Título x do vapor úmido (0 a 1). Só é usado quando o estado registrado é umido. |  | 0 a 1 |
+| `massa_purga_kg` | kg desde a leitura anterior | não | Massa total purgada desde a leitura anterior. Sem massa medida, a EULER não converte duração em perda energética. |  | 0 a 10.000.000 |
+| `p_purga_bar_man` | bar manométrico | não | Pressão no ponto de origem da purga, usada para calcular a entalpia da purga. |  | 0 a 250 |
+| `vazao_agua_alim_t_h` | t/h | não | Vazão de água de alimentação no ponto usado para avaliar o economizador. |  | 0 a 1.000 |
+| `p_agua_eco_bar_man` | bar manométrico | não | Pressão da água no economizador, no mesmo trecho das temperaturas de água. |  | 0 a 250 |
+| `t_agua_eco_entrada_c` | °C | não | Temperatura da água na entrada do economizador. |  | 5 a 300 |
+| `t_agua_eco_saida_c` | °C | não | Temperatura da água na saída do economizador. |  | 5 a 350 |
+| `t_gases_eco_entrada_c` | °C | não | Temperatura dos gases na entrada do economizador. |  | 50 a 800 |
+| `t_gases_eco_saida_c` | °C | não | Temperatura dos gases na saída do economizador. |  | 30 a 600 |
+| `dp_gases_mbar` | mbar | não | Diferença de pressão no trecho de gases associado à análise de transferência. |  | 0 a 500 |
 
 ### `combustivel.csv` · Combustível: recebimentos e estoques
 
