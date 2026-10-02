@@ -236,11 +236,12 @@ def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
             e, "GJ", comb.orcamento.mais(pci.orcamento), "cenário 'o que entra é o que queima'"
         )
 
-    if r.massa_purga_kg is not None and p is not None and t_agua is not None:
+    p_purga = r.leituras.get("p_purga_bar_abs")
+    if r.massa_purga_kg is not None and p_purga is not None and t_agua is not None:
         try:
             q_purga = energia_purga_gj(
                 massa_purga_kg=r.massa_purga_kg,
-                p_bar_abs=p.media,
+                p_bar_abs=p_purga.media,
                 t_agua_referencia_c=t_agua.media,
             )
             orc_purga = Orcamento(
@@ -255,7 +256,7 @@ def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
                 "estimado",
                 None,
                 "massa purgada medida × diferença de entalpia; líquido saturado à pressão "
-                "do vapor, sem crédito de recuperação de calor/flash",
+                "medida no ponto de purga, sem crédito de recuperação de calor/flash",
                 orc_purga,
             )
             if b.energia_combustivel_gj is not None and b.energia_combustivel_gj.valor > 0:
