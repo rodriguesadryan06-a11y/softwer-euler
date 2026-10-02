@@ -44,7 +44,13 @@ class BaselineCarga:
                 f"({self.carga_min_t_h:g} a {self.carga_max_t_h:g} t/h).",
                 ["dados de referência em carga semelhante"],
             )
-        return self.intercepto_t_h + self.inclinacao_t_t * carga_t_h
+        previsto = self.intercepto_t_h + self.inclinacao_t_t * carga_t_h
+        if previsto <= 0 or not isfinite(previsto):
+            raise AnaliseBloqueada(
+                "O baseline produziu vazão de combustível não física nesta carga.",
+                ["revisar a faixa/qualidade dos períodos de referência"],
+            )
+        return previsto
 
     def sigma_predicao_t_h(self, carga_t_h: float) -> float | None:
         """Desvio-padrão de previsão OLS dentro da faixa de referência.
