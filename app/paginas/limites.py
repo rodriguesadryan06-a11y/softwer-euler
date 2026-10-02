@@ -108,8 +108,8 @@ def mapa_adaptativo(pacote) -> None:
             b = balanco_por_vazoes(diario)
             st.markdown("#### Balanço disponível pelo historiador")
             m1, m2, m3 = st.columns(3)
-            m1.metric("Eficiência combustível → vapor", f"{100*b.eficiencia:.1f}%", border=True)
-            m2.metric("Cobertura comum", f"{100*b.cobertura:.0f}%", border=True)
+            m1.metric("Eficiência combustível → vapor", f"{100 * b.eficiencia:.1f}%", border=True)
+            m2.metric("Cobertura comum", f"{100 * b.cobertura:.0f}%", border=True)
             m3.metric("Intervalos usados", b.intervalos_usados, border=True)
             st.caption(b.nota)
         except AnaliseBloqueada as erro:
