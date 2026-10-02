@@ -64,6 +64,9 @@ class BalancoDireto:
     eficiencia_cenarios: dict[str, float] | None = None
     consumo_t_por_t: Grandeza | None = None
     intensidade_gj_por_t: Grandeza | None = None
+    estado_vapor: str = "saturado_seco"
+    estado_vapor_origem: str = "assumido"
+    titulo_vapor: float = 1.0
     sensibilidade_titulo_pct: float | None = None
     """Variação relativa de Δh (e de η) se o título for 0,99 em vez de 1 (sempre negativa)."""
     fronteira: str = FRONTEIRA
