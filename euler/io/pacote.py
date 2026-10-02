@@ -12,7 +12,16 @@ from euler import qualidade
 from euler.io.combustivel import importar_combustivel
 from euler.io.diario import importar_diario
 from euler.io.esquemas import TABELAS, rotulo_coluna
-from euler.io.leitura import FUSO_PADRAO, Aviso, Fonte, Importacao, importar_tabela, ler_planilha
+from euler.io.leitura import (
+    ALIASES_COLUNAS,
+    FUSO_PADRAO,
+    Aviso,
+    Fonte,
+    Importacao,
+    importar_tabela,
+    ler_csv,
+    ler_planilha,
+)
 
 ORDEM_GRAVIDADE = {"erro": 0, "atencao": 1, "info": 2}
 ROTULO_GRAVIDADE = {"erro": "Erro", "atencao": "Atenção", "info": "Informação"}
@@ -148,6 +157,32 @@ def importar_pacote(
     return p
 
 
+def _inferir_tabela_csv(conteudo: bytes) -> str | None:
+    """Reconhece uma tabela por cabeçalho sem depender do nome do arquivo.
+
+    Só aceita quando as chaves mínimas da tabela aparecem explicitamente (ou por alias
+    unitário). Em caso ambíguo, não escolhe.
+    """
+    bruto, _, _ = ler_csv(conteudo, "—")
+    cols = {
+        ALIASES_COLUNAS.get(str(c).strip(), str(c).strip())
+        for c in bruto.columns
+        if c != "linha"
+    }
+    candidatos = []
+    for nome, tabela in TABELAS.items():
+        obrig = {c.nome for c in tabela.colunas if c.obrigatoria}
+        if obrig and obrig <= cols:
+            score = len(cols & {c.nome for c in tabela.colunas})
+            candidatos.append((score, nome))
+    if not candidatos:
+        return None
+    candidatos.sort(reverse=True)
+    if len(candidatos) > 1 and candidatos[0][0] == candidatos[1][0]:
+        return None
+    return candidatos[0][1]
+
+
 def fontes_de_arquivos(arquivos: Mapping[str, bytes]) -> tuple[dict[str, Fonte], list[Aviso]]:
     """Identifica as tabelas pelos nomes dos arquivos enviados.
 
@@ -164,6 +199,33 @@ def fontes_de_arquivos(arquivos: Mapping[str, bytes]) -> tuple[dict[str, Fonte],
                 fontes[nome] = aba
         elif caminho.suffix.lower() == ".csv" and base in TABELAS:
             fontes[base] = conteudo
+        elif caminho.suffix.lower() == ".csv":
+            inferida = _inferir_tabela_csv(conteudo)
+            if inferida is not None and inferida not in fontes:
+                fontes[inferida] = conteudo
+                avisos.append(
+                    Aviso(
+                        inferida,
+                        None,
+                        None,
+                        "arquivo_inferido",
+                        f"Arquivo '{nome_arquivo}' reconhecido pelo cabeçalho como "
+                        f"{TABELAS[inferida].rotulo}.",
+                        "info",
+                    )
+                )
+            else:
+                avisos.append(
+                    Aviso(
+                        "—",
+                        None,
+                        None,
+                        "arquivo_desconhecido",
+                        f"Arquivo '{nome_arquivo}' não pôde ser associado com segurança a "
+                        "nenhum registro conhecido.",
+                        "info",
+                    )
+                )
         else:
             avisos.append(
                 Aviso(
@@ -171,8 +233,7 @@ def fontes_de_arquivos(arquivos: Mapping[str, bytes]) -> tuple[dict[str, Fonte],
                     None,
                     None,
                     "arquivo_desconhecido",
-                    f"Arquivo '{nome_arquivo}' não foi reconhecido: o nome precisa ser o de "
-                    "uma das tabelas do modelo (a lista está em “Detalhes técnicos”).",
+                    f"Arquivo '{nome_arquivo}' não foi reconhecido.",
                     "info",
                 )
             )
