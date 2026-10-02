@@ -27,8 +27,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from iapws import IAPWS97
-
 from euler.incerteza import Componente, Falta, Orcamento
 from euler.periodos import ROTULO_LEITURA, ResumoPeriodo
 from euler.tipos import AnaliseBloqueada, Grandeza
@@ -36,8 +34,9 @@ from euler.vapor import delta_h_mj_kg
 
 FRONTEIRA = (
     "Entra: combustível queimado no período (estoques + recebimentos) com o PCI do material. "
-    "Sai como energia útil: o vapor medido no totalizador, da água de alimentação até vapor "
-    "saturado (título assumido = 1). Ficam fora: purga, gases da chaminé, casco, cinzas, "
+    "Sai como energia útil: o vapor medido no totalizador, da água de alimentação até o estado "
+    "do vapor informado; quando o estado não é informado, assume-se vapor saturado seco (x = 1) "
+    "e essa hipótese fica explícita. Ficam fora: purga, gases da chaminé, casco, cinzas, "
     "vazamentos e vapor usado antes do medidor."
 )
 
@@ -66,7 +65,7 @@ class BalancoDireto:
     intensidade_gj_por_t: Grandeza | None = None
     estado_vapor: str = "saturado_seco"
     estado_vapor_origem: str = "assumido"
-    titulo_vapor: float = 1.0
+    titulo_vapor: float | None = 1.0
     sensibilidade_titulo_pct: float | None = None
     """Variação relativa de Δh (e de η) se o título for 0,99 em vez de 1 (sempre negativa)."""
     fronteira: str = FRONTEIRA
@@ -78,20 +77,47 @@ class BalancoDireto:
         return self.eficiencia is not None
 
 
-def _orcamento_delta_h(r: ResumoPeriodo, p: float, t: float, dh: float) -> Orcamento:
-    """Incerteza de Δh pelas médias de pressão e de água de alimentação: dispersão das médias
-    diárias e instrumento de cada uma (o que faltar vai para `faltam`, nunca vira zero)."""
+def _orcamento_delta_h(
+    r: ResumoPeriodo,
+    p: float,
+    t_agua: float,
+    dh: float,
+    estado: str,
+    t_vapor_c: float | None = None,
+    titulo: float | None = None,
+) -> Orcamento:
+    """Propaga as medições que determinam Δh; ausência de incerteza nunca vira zero."""
     orc = Orcamento()
-    for coluna, passo in (("p_vapor_bar_abs", 0.1), ("t_agua_alim_c", 1.0)):
+
+    def calcular(**mudancas) -> float:
+        return delta_h_mj_kg(
+            mudancas.get("p", p),
+            estado,
+            mudancas.get("t_agua", t_agua),
+            t_vapor_c=mudancas.get("t_vapor", t_vapor_c),
+            titulo=mudancas.get("titulo", titulo),
+        )
+
+    entradas = [
+        ("p_vapor_bar_abs", "p", 0.1),
+        ("t_agua_alim_c", "t_agua", 1.0),
+    ]
+    if estado == "superaquecido":
+        entradas.append(("t_vapor_c", "t_vapor", 1.0))
+    elif estado == "umido":
+        passo_x = -0.001 if titulo is not None and titulo >= 0.999 else 0.001
+        entradas.append(("titulo_vapor", "titulo", passo_x))
+
+    for coluna, argumento, passo in entradas:
         g = r.leituras_grandeza.get(coluna)
         if g is None or g.orcamento is None:
             orc.faltam.append(Falta(f"incerteza de {ROTULO_LEITURA[coluna]}", False))
             continue
-        args = {"p_vapor_bar_abs": p, "t_agua_alim_c": t}
-        args[coluna] += passo
-        sens = (
-            delta_h_mj_kg(args["p_vapor_bar_abs"], "saturado_seco", args["t_agua_alim_c"]) - dh
-        ) / passo
+        try:
+            sens = (calcular(**{argumento: g.valor + passo}) - dh) / passo
+        except AnaliseBloqueada:
+            orc.faltam.append(Falta(f"sensibilidade de {ROTULO_LEITURA[coluna]}", False))
+            continue
         for c in g.orcamento.componentes:
             orc.componentes.append(
                 Componente(
@@ -104,8 +130,12 @@ def _orcamento_delta_h(r: ResumoPeriodo, p: float, t: float, dh: float) -> Orcam
                 )
             )
         orc.faltam += g.orcamento.faltam
+
     orc.faltam = list(dict.fromkeys(orc.faltam))
-    orc.nao_incluidos.append("título do vapor não medido (x = 1 assumido)")
+    if estado == "saturado_seco" and r.estado_vapor_origem == "assumido":
+        orc.nao_incluidos.append("título do vapor não medido (x = 1 assumido)")
+    elif estado == "saturado_seco":
+        orc.nao_incluidos.append("incerteza da confirmação de vapor saturado seco não quantificada")
     return orc
 
 
@@ -116,8 +146,12 @@ def _grandeza(valor: float, unidade: str, orc: Orcamento, nota: str) -> Grandeza
 
 def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
     """Eficiência direta, consumo específico e intensidade energética do período."""
-    b = BalancoDireto()
-    for chave in ("vapor", "combustivel", "mistura"):
+    b = BalancoDireto(
+        estado_vapor=r.estado_vapor,
+        estado_vapor_origem=r.estado_vapor_origem,
+        titulo_vapor=r.titulo_vapor,
+    )
+    for chave in ("vapor", "combustivel", "mistura", "estado_vapor"):
         if chave in r.bloqueios:
             b.bloqueios.append(r.bloqueios[chave])
 
@@ -138,19 +172,49 @@ def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
                 ["temperatura da água de alimentação"],
             )
         )
-    else:
+    elif "estado_vapor" not in r.bloqueios:
         try:
-            dh = delta_h_mj_kg(p.media, "saturado_seco", t_agua.media)
+            kwargs = {}
+            detalhe_estado = "vapor saturado seco"
+            if r.estado_vapor == "superaquecido":
+                t_vapor = r.leituras.get("t_vapor_c")
+                if t_vapor is None:
+                    raise AnaliseBloqueada(
+                        "Vapor superaquecido sem temperatura média disponível.",
+                        ["temperatura do vapor"],
+                    )
+                kwargs["t_vapor_c"] = t_vapor.media
+                detalhe_estado = f"vapor superaquecido a {t_vapor.media:.1f} °C"
+            elif r.estado_vapor == "umido":
+                titulo = r.leituras.get("titulo_vapor")
+                if titulo is None:
+                    raise AnaliseBloqueada(
+                        "Vapor úmido sem título médio disponível.",
+                        ["título do vapor"],
+                    )
+                kwargs["titulo"] = titulo.media
+                b.titulo_vapor = titulo.media
+                detalhe_estado = f"vapor úmido com x = {titulo.media:.4f}"
+
+            dh = delta_h_mj_kg(p.media, r.estado_vapor, t_agua.media, **kwargs)
             b.delta_h_mj_kg = _grandeza(
                 dh,
                 "MJ/kg",
-                _orcamento_delta_h(r, p.media, t_agua.media, dh),
-                f"IF97 a {p.media:.2f} bar abs, água a {t_agua.media:.0f} °C; título x = 1 assumido",
+                _orcamento_delta_h(
+                    r,
+                    p.media,
+                    t_agua.media,
+                    dh,
+                    r.estado_vapor,
+                    t_vapor_c=kwargs.get("t_vapor_c"),
+                    titulo=kwargs.get("titulo"),
+                ),
+                f"IF97 a {p.media:.2f} bar abs, água a {t_agua.media:.0f} °C; "
+                f"{detalhe_estado} ({r.estado_vapor_origem})",
             )
-            umido = IAPWS97(P=p.media / 10, x=0.99).h / 1000 - (
-                IAPWS97(P=p.media / 10, x=1).h / 1000 - dh
-            )
-            b.sensibilidade_titulo_pct = 100 * (umido / dh - 1)
+            if r.estado_vapor == "saturado_seco" and r.estado_vapor_origem == "assumido":
+                dh_99 = delta_h_mj_kg(p.media, "umido", t_agua.media, titulo=0.99)
+                b.sensibilidade_titulo_pct = 100 * (dh_99 / dh - 1)
         except AnaliseBloqueada as bloqueio:
             b.bloqueios.append(bloqueio)
 
