@@ -22,7 +22,7 @@ def _periodo_com_vapor(estado: str, *, t_vapor_c=None, titulo_vapor=None):
     pacote, limites = montar([Periodo(G01, dias=3)])
     diario = pacote.importacoes["diario"].dados
     ini, fim = limites[0]
-    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] <= fim)
     diario.loc[sel, "estado_vapor"] = estado
     diario.loc[sel, "t_vapor_c"] = t_vapor_c
     diario.loc[sel, "titulo_vapor"] = titulo_vapor
@@ -60,7 +60,7 @@ def test_estado_do_vapor_misto_bloqueia_em_vez_de_fazer_media():
     diario = pacote.importacoes["diario"].dados
     ini, fim = limites[0]
     sel = diario.index[
-        (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+        (diario["instante_observado"] >= ini) & (diario["instante_observado"] <= fim)
     ]
     diario.loc[sel, "estado_vapor"] = "saturado_seco"
     diario.loc[sel[len(sel) // 2 :], "estado_vapor"] = "superaquecido"
