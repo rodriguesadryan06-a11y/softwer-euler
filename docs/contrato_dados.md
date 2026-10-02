@@ -5,9 +5,10 @@
 
 ## Regras gerais
 
-- **Um arquivo por tabela**, com o nome exato (`diario.csv`, `combustivel.csv`, `amostras.csv`,
-  `eventos.csv`, `instrumentos.csv`), **ou** uma planilha `.xlsx` com uma aba por tabela
-  (modelo: `templates/planilha_modelo_euler.xlsx`).
+- **Formato recomendado:** um arquivo por tabela (`diario.csv`, `combustivel.csv`,
+  `amostras.csv`, `eventos.csv`, `instrumentos.csv`) ou uma planilha `.xlsx` com uma aba
+  por tabela. Um CSV com outro nome também pode ser reconhecido pelo cabeçalho quando a tabela
+  for inequívoca; aliases só são aceitos quando a unidade está explícita no nome.
 - **Separador:** vírgula (`,`) ou ponto-e-vírgula (`;`, padrão do Excel em português). Com
   ponto-e-vírgula, números podem usar vírgula decimal (`182,5`). Codificação UTF-8 ou Windows.
 - **Vazio = não medido.** Nunca escreva 0 para "não medido". `-`, `s/d` e `n/a` também são
@@ -64,6 +65,10 @@ Uma linha por leitura do operador (ou do sistema) na caldeira.
 | `t_gases_eco_entrada_c` | °C | não | Temperatura dos gases na entrada do economizador. |  | 50 a 800 |
 | `t_gases_eco_saida_c` | °C | não | Temperatura dos gases na saída do economizador. |  | 30 a 600 |
 | `dp_gases_mbar` | mbar | não | Diferença de pressão no trecho de gases associado à análise de transferência. |  | 0 a 500 |
+| `vazao_vapor_t_h` | t/h | não | Vazão instantânea de vapor. Permite balanço por historiador sem depender do totalizador. |  | 0 a 5.000 |
+| `vazao_combustivel_kg_h` | kg/h | não | Vazão mássica instantânea de combustível como recebido. |  | 0 a 10.000.000 |
+| `pci_combustivel_mj_kg` | MJ/kg como recebido | não | PCI correspondente ao combustível na condição em que a vazão mássica é medida. |  | 0,10 a 60 |
+| `potencia_combustivel_mw` | MW térmico | não | Potência térmica de entrada do combustível, quando já calculada/medida pelo sistema da planta. |  | 0 a 5.000 |
 
 ### `combustivel.csv` · Combustível: recebimentos e estoques
 
