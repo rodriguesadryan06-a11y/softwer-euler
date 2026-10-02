@@ -5,7 +5,6 @@ necessários existem; ausência continua sendo ausência, nunca zero.
 """
 
 import pytest
-
 from construtor_caso import Periodo, montar
 
 from euler.baseline import ObservacaoCarga, ajustar_baseline_carga, residual_normalizado
