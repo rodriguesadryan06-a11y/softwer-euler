@@ -37,6 +37,15 @@ def test_eficiencia_direta_recupera_o_rendimento_do_caso(caso):
     assert b.eficiencia.origem == "estimado"
 
 
+def test_estado_do_vapor_assumido_fica_explicito_no_resultado(caso):
+    pacote, limites = caso
+    b = balanco_direto(resumir_periodo(pacote, *limites[0]))
+    assert b.estado_vapor == "saturado_seco"
+    assert b.estado_vapor_origem == "assumido"
+    assert b.titulo_vapor == pytest.approx(1.0)
+    assert "saturado" in b.fronteira.lower()
+
+
 def test_resultado_tem_intervalo_quando_ha_incerteza_declarada(caso):
     pacote, limites = caso
     b = balanco_direto(resumir_periodo(pacote, *limites[0]))
