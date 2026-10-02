@@ -162,6 +162,19 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
             "Sem temperatura da água de alimentação.",
             "Registrar a temperatura da água de alimentação.",
         )
+        estados = set(diario["estado_vapor"].dropna().astype(str)) if "estado_vapor" in diario else set()
+        if "superaquecido" in estados:
+            v.exigir(
+                _tem(diario, "t_vapor_c"),
+                "Há vapor superaquecido, mas sem temperatura do vapor.",
+                "Registrar a temperatura do vapor nas leituras usadas no balanço.",
+            )
+        if "umido" in estados:
+            v.exigir(
+                _tem(diario, "titulo_vapor"),
+                "Há vapor úmido, mas sem título do vapor.",
+                "Registrar o título do vapor nas leituras usadas no balanço.",
+            )
     caps.append(
         v.capacidade(
             "energia_vapor",
@@ -270,13 +283,23 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
         "Cadastrar a incerteza do levantamento de estoque (em % da leitura), com o tipo.",
     )
     # a eficiência também depende destes; sem eles, a incerteza fica indisponível (A3)
-    for grandeza, nome, unidade in (
+    requisitos_incerteza = [
         ("balanca", "da balança dos recebimentos", "kg"),
         ("p_vapor_bar_abs", "do manômetro do vapor", "bar"),
         ("t_agua_alim_c", "do termômetro da água de alimentação", "°C"),
         ("umidade", "do método de umidade (estufa)", "em pontos de %"),
         ("pci_seco", "da análise de PCI seco (calorímetro)", "em % da leitura"),
-    ):
+    ]
+    estados = set(diario["estado_vapor"].dropna().astype(str)) if diario is not None else set()
+    if "superaquecido" in estados:
+        requisitos_incerteza.append(
+            ("t_vapor_c", "do termômetro do vapor superaquecido", "°C")
+        )
+    if "umido" in estados:
+        requisitos_incerteza.append(
+            ("titulo_vapor", "da medição do título do vapor", "fração ou % declarada")
+        )
+    for grandeza, nome, unidade in requisitos_incerteza:
         v.exigir(
             buscar_instrumento(pacote, grandeza) is not None,
             f"Sem incerteza declarada {nome}.",
