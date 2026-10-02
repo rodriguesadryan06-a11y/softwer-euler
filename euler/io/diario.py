@@ -15,8 +15,8 @@ def importar_diario(
 ) -> Importacao:
     """Lê, normaliza e verifica o diário.
 
-    Converte as pressões manométricas do vapor e do economizador para absolutas
-    (`p_vapor_bar_abs` e `p_agua_eco_bar_abs`, regra 3)
+    Converte as pressões manométricas do vapor, da purga e do economizador para absolutas
+    (`p_vapor_bar_abs`, `p_purga_bar_abs` e `p_agua_eco_bar_abs`, regra 3)
     quando a pressão atmosférica do local é conhecida; sem ela, a coluna fica vazia
     e um aviso explica por quê.
     """
@@ -26,9 +26,11 @@ def importar_diario(
     dados = imp.dados
     if p_atm_bar is not None:
         dados["p_vapor_bar_abs"] = dados["p_vapor_bar_man"] + p_atm_bar
+        dados["p_purga_bar_abs"] = dados["p_purga_bar_man"] + p_atm_bar
         dados["p_agua_eco_bar_abs"] = dados["p_agua_eco_bar_man"] + p_atm_bar
     else:
         dados["p_vapor_bar_abs"] = pd.Series([pd.NA] * len(dados), dtype="Float64")
+        dados["p_purga_bar_abs"] = pd.Series([pd.NA] * len(dados), dtype="Float64")
         dados["p_agua_eco_bar_abs"] = pd.Series([pd.NA] * len(dados), dtype="Float64")
         if dados["p_vapor_bar_man"].notna().any():
             imp.avisos.append(
