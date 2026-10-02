@@ -117,9 +117,9 @@ def test_balanco_por_vazoes_nao_atravessa_lacuna_grande():
 
 def test_nome_do_arquivo_nao_precisa_ser_padrao_quando_o_cabecalho_e_inequivoco():
     conteudo = (
-        "boiler_id,timestamp,steam_pressure_bar_g,steam_temperature_c,steam_flow_t_h\n"
-        "B1,2026-10-01T08:00:00-03:00,9,250,10\n"
-    ).encode()
+        b"boiler_id,timestamp,steam_pressure_bar_g,steam_temperature_c,steam_flow_t_h\n"
+        b"B1,2026-10-01T08:00:00-03:00,9,250,10\n"
+    )
     fontes, avisos = fontes_de_arquivos({"historian_export_october.csv": conteudo})
     assert set(fontes) == {"diario"}
     assert any(a.tipo == "arquivo_inferido" for a in avisos)
