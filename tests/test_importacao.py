@@ -98,6 +98,19 @@ def test_csv_do_excel_brasileiro_ponto_e_virgula_e_virgula_decimal():
     assert "interpretacao" in tipos
 
 
+def test_diario_aceita_estado_temperatura_e_titulo_do_vapor():
+    conteudo = (
+        "caldeira_id,instante_observado,estado_vapor,t_vapor_c,titulo_vapor_frac\n"
+        "C1,2026-10-05T08:00:00-03:00,superaquecido,250,\n"
+        "C1,2026-10-05T10:00:00-03:00,umido,,0.95\n"
+    ).encode()
+    imp = importar_diario(conteudo)
+    assert not imp.bloqueada
+    assert list(imp.dados["estado_vapor"]) == ["superaquecido", "umido"]
+    assert imp.dados["t_vapor_c"].iloc[0] == pytest.approx(250.0)
+    assert imp.dados["titulo_vapor_frac"].iloc[1] == pytest.approx(0.95)
+
+
 def test_codificacao_windows_e_registrada():
     conteudo = "instante,tipo,descricao\n2026-10-12T14:00:00-03:00,limpeza,Limpeza dos tubos\n"
     conteudo = conteudo.replace("Limpeza dos tubos", "Inspeção").encode("cp1252")
