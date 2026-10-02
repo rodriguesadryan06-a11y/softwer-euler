@@ -162,7 +162,7 @@ def test_resumo_em_ate_tres_frases_curtas():
         assert frases[0] == "O consumo por tonelada de vapor subiu 10,1%."
         assert frases[-1].startswith("Próxima verificação: ")
         assert "(+7,8%)" in frases[1] and "(+3,1%)" in frases[1]
-        assert "descartado: mais excesso de ar" in frases[1]
+        assert "descartado: o₂ maior / maior diluição aparente dos gases" in frases[1].lower()
         if pasta == "caso_demo_completo":
             assert frases[1].startswith("Explicações compatíveis com os dados:")
         else:
