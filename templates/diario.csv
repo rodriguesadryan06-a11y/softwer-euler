@@ -1,2 +1,2 @@
-caldeira_id,instante_observado,instante_registrado,turno,operador_id,regime,p_vapor_bar_man,t_gases_c,ponto_gases_id,o2_seco_pct,instrumento_o2_id,co_ppm,t_agua_alim_c,t_ar_c,purgas_n,purgas_s,totalizador_vapor_t,producao,ocorrencia,flag_instrumento_indisponivel,origem_dado
-CALD-SINT-01,2026-10-05T08:00:00-03:00,2026-10-05T08:05:00-03:00,A,OP-01,estavel,9.0,182,CHAMINE-1,8.1,ANALIS-01,,80,28,1,20,15234.5,,,false,sintetico
+caldeira_id,instante_observado,instante_registrado,turno,operador_id,regime,p_vapor_bar_man,t_gases_c,ponto_gases_id,o2_seco_pct,instrumento_o2_id,co_ppm,t_agua_alim_c,t_ar_c,purgas_n,purgas_s,totalizador_vapor_t,producao,ocorrencia,flag_instrumento_indisponivel,origem_dado,estado_vapor,t_vapor_c,titulo_vapor_frac
+CALD-SINT-01,2026-10-05T08:00:00-03:00,2026-10-05T08:05:00-03:00,A,OP-01,estavel,9.0,182,CHAMINE-1,8.1,ANALIS-01,,80,28,1,20,15234.5,,,false,sintetico,,,
