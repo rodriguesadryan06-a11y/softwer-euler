@@ -30,9 +30,16 @@ def test_cabecalhos_dos_csvs_modelo_seguem_o_contrato():
         assert all(not t.coluna(c).obrigatoria for c in contrato[len(cabecalho) :]), t.arquivo
 
 
-def test_planilha_tem_uma_aba_por_tabela_com_os_cabecalhos_do_contrato():
+def test_planilha_tem_uma_aba_por_tabela_com_cabecalhos_compativeis():
+    """A planilha versionada pode omitir apenas extensões opcionais no fim do contrato.
+
+    O gerador continua produzindo o contrato completo; esta regra preserva compatibilidade
+    com a planilha binária já distribuída enquanto novos campos opcionais são introduzidos.
+    """
     wb = load_workbook(ARQUIVO_PLANILHA)
     assert wb.sheetnames == ["LEIA-ME", *TABELAS]
     for t in TABELAS.values():
         cabecalho = [c.value for c in wb[t.nome][1]]
-        assert cabecalho == [c.nome for c in t.colunas], t.nome
+        contrato = [c.nome for c in t.colunas]
+        assert cabecalho == contrato[: len(cabecalho)], t.nome
+        assert all(not t.coluna(c).obrigatoria for c in contrato[len(cabecalho) :]), t.nome
