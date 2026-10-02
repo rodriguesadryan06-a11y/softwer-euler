@@ -383,7 +383,7 @@ def normalizar(
     for alias, canonico in ALIASES_COLUNAS.items():
         if alias not in entrada.columns or canonico in entrada.columns:
             continue
-        if tabela.coluna(canonico) is None:
+        if canonico not in {c.nome for c in tabela.colunas}:
             continue
         renomear[alias] = canonico
         avisos.append(
