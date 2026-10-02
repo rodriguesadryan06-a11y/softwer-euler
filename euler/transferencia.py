@@ -40,12 +40,13 @@ def ua_economizador(
     t_gases_entrada_c: float,
     t_gases_saida_c: float,
 ) -> ResultadoUA:
-    """Calcula Q pela água e UA aparente por LMTD, assumindo contracorrente.
+    """Calcula Q pela água e UA aparente por LMTD contracorrente-equivalente.
 
     Q = m_dot,fw · (h_out − h_in)
     UA = Q / ΔT_lm
 
-    A pressão da água é assumida constante no trecho. O resultado não prova fouling.
+    A pressão da água é assumida constante no trecho. Geometrias de fluxo diferentes podem
+    exigir fator de correção; por isso o resultado é chamado de UA aparente. Não prova fouling.
     """
     if vazao_agua_t_h <= 0:
         raise AnaliseBloqueada("Vazão de água do economizador precisa ser positiva.")
