@@ -844,7 +844,8 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         elif len(id_o2) > 1:
             r.bloqueios["instrumento_o2"] = AnaliseBloqueada(
                 "Há leituras de O₂ de mais de um analisador no mesmo período "
-                f"({', '.join(id_o2)}). A EULER não atribui a média à incerteza de um único instrumento.",
+                f"({', '.join(id_o2)}). A EULER não atribui a média à incerteza de um único "
+                "instrumento.",
                 [
                     "separar as leituras por analisador de O₂ ou confirmar qual instrumento "
                     "representa o período"
