@@ -188,6 +188,7 @@ class ResumoPeriodo:
     leituras_grandeza: dict[str, Grandeza] = field(default_factory=dict)
     n_leituras_diario: int = 0
     cobertura_diario: float | None = None
+    ponto_gases_id: str | None = None
     vapor_t: Grandeza | None = None
     energia_util_intervalos_gj: float | None = None
     combustivel_kg: Grandeza | None = None
@@ -809,6 +810,26 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         operando = no_periodo[no_periodo["regime"].fillna("estavel") != "parada"]
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
         r.n_leituras_diario = len(operando)
+
+        # Temperatura e O₂ só podem alimentar o caminho indireto quando pertencem a uma
+        # mesma fronteira física. Misturar, por exemplo, saída da caldeira e pós-economizador
+        # cria uma média que não representa nenhum estado real (D67).
+        usa_gases = operando["t_gases_c"].notna() | operando["o2_seco_pct"].notna()
+        pontos = (
+            operando.loc[usa_gases, "ponto_gases_id"].dropna().astype(str).str.strip()
+        )
+        pontos = tuple(dict.fromkeys(p for p in pontos if p))
+        if len(pontos) == 1:
+            r.ponto_gases_id = pontos[0]
+        elif len(pontos) > 1:
+            r.bloqueios["ponto_gases"] = AnaliseBloqueada(
+                "Há leituras de gases em mais de um ponto no mesmo período "
+                f"({', '.join(pontos)}). A EULER não mistura pontos físicos diferentes.",
+                [
+                    "selecionar um único ponto de medição dos gases para o período "
+                    "ou analisar cada ponto separadamente"
+                ],
+            )
         if r.horas > 0 and len(no_periodo):
             r.cobertura_diario = min(1.0, len(no_periodo) * _intervalo_tipico_h(diario) / r.horas)
         for coluna, unidade in LEITURAS_DIARIO.items():
