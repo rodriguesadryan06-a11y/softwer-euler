@@ -127,9 +127,7 @@ def _baseline_carga(
         carga = r.vapor_t.valor / r.horas
         combustivel = (r.combustivel_kg.valor / 1000) / r.horas
         try:
-            residuos[i] = residual_normalizado(
-                modelo, carga_t_h=carga, combustivel_t_h=combustivel
-            )
+            residuos[i] = residual_normalizado(modelo, carga_t_h=carga, combustivel_t_h=combustivel)
         except AnaliseBloqueada:
             residuos[i] = None
     return modelo, residuos
@@ -237,9 +235,7 @@ def avaliar_saude(pacote: Pacote) -> Saude:
             + f" de {_datas(datas, *mudanca)} em relação à referência ({texto_ref}), "
             "além da incerteza das medições."
         )
-        return Saude(
-            periodos, ref, c_ref, "mudou", frase, mudanca, cmp, eventos, **extras
-        )
+        return Saude(periodos, ref, c_ref, "mudou", frase, mudanca, cmp, eventos, **extras)
     if depois and all(p.estado == "estavel" for p in depois):
         return Saude(
             periodos, ref, c_ref, "estavel",
