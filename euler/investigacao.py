@@ -1450,6 +1450,11 @@ def investigar(
             "composicao_origem": r.composicao_origem,
             "eficiencia_direta": _grandeza_json(b.eficiencia),
             "eficiencia_cenarios_patio": b.eficiencia_cenarios,
+            "estado_vapor": {
+                "estado": b.estado_vapor,
+                "origem": b.estado_vapor_origem,
+                "titulo": b.titulo_vapor,
+            },
             "sensibilidade_titulo_vapor_pct": b.sensibilidade_titulo_pct,
             "fronteira_balanco_direto": b.fronteira,
             "consumo_t_por_t": _grandeza_json(b.consumo_t_por_t),
