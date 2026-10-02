@@ -1453,6 +1453,7 @@ def investigar(
             "estado_vapor": {
                 "estado": b.estado_vapor,
                 "origem": b.estado_vapor_origem,
+                "temperatura_c": b.t_vapor_c,
                 "titulo": b.titulo_vapor,
             },
             "sensibilidade_titulo_vapor_pct": b.sensibilidade_titulo_pct,
