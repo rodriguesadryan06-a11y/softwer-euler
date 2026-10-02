@@ -358,7 +358,7 @@ def test_a6_o2_nao_e_rotulado_como_causa_unica_de_excesso_de_ar():
     pacote, lim = montar([Periodo(G01), Periodo(G01, o2_seco_pct=10.5)])
     j = investigar(pacote, lim[0], lim[1])
     h = next(x for x in j["hipoteses"] if x["id"] == "excesso_ar")
-    texto = " ".join(str(h.get(k, "")) for k in ("titulo", "porque", "proxima_verificacao", "fonte"))
+    texto = " ".join(str(h.get(k, "")) for k in ("titulo", "porque", "verificacao", "evidencia"))
     texto = texto.lower()
     assert "dilui" in texto or "ar falso" in texto
     assert "não separa" in texto or "nao separa" in texto
