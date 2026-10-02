@@ -12,10 +12,10 @@ COR_GRAVIDADE = {"Erro": "red", "Atenção": "orange", "Informação": "gray"}
 
 cabecalho(
     "Importar dados",
-    "Envie os registros da caldeira (diário do operador, recebimentos de combustível, "
-    "amostras, eventos e cadastro de instrumentos), um arquivo CSV por registro, ou a "
-    "**planilha modelo** preenchida. A EULER guarda o original e lista o que encontrou. "
-    "**Nada é corrigido sem avisar.**",
+    "Envie o que a planta já tem: historiador, diário, combustível, amostras, eventos ou "
+    "instrumentos. A EULER reconhece as grandezas disponíveis, monta as rotas físicas possíveis "
+    "e mostra o que ainda não dá para concluir. Nomes padrão ajudam, mas um CSV com cabeçalho "
+    "inequívoco também pode ser reconhecido. Nada é corrigido nem preenchido sem avisar.",
     "Passo 1 de 6",
 )
 
@@ -62,8 +62,9 @@ with envio, cartao("arquivos"):
         )
     with st.expander("Detalhes técnicos: nomes dos arquivos e das colunas"):
         st.markdown(
-            "Cada registro vai num arquivo com o nome abaixo (ou numa aba da planilha com o "
-            "mesmo nome, sem o `.csv`). Colunas e unidades completas no contrato de dados "
+            "Os nomes abaixo são o formato recomendado. CSVs com outro nome podem ser "
+            "reconhecidos pelo cabeçalho quando não houver ambiguidade. Colunas e unidades "
+            "completas no contrato de dados "
             "(`docs/contrato_dados.md`)."
         )
         st.dataframe(
