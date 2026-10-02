@@ -172,3 +172,27 @@ cara de aplicativo, **sem mexer em cálculos, demo, incertezas nem resultados in
 - `pyproject.toml` mínimo criado já na Etapa 0 (necessário para instalar dependências). A Etapa 1 (T01) completa com CI e modelo de PR.
 - Ruff ignora `lab/` (calculadora de referência copiada como veio, não é código do produto); `ruff format` não toca em `tests/golden/`.
 - Ambiente na nuvem: o endereço `localhost:8501` não abre no computador do Adryan. Nas etapas com tela, mostrar prints (Playwright) enviados na conversa.
+
+
+## Revisão física adicional · 02/10/2026
+
+Pedido do Adryan: revisar o motor diretamente no repositório, corrigir problemas de fronteira
+física identificados na leitura do código e revisar cada mudança antes de integrar.
+
+| Item | O que mudou | Situação |
+|---|---|---|
+| Identidade do ponto de gases (D67) | o caminho indireto não mistura, no mesmo período, leituras identificadas em pontos físicos diferentes; o ponto usado fica explícito no JSON | **feito e testado** |
+| Identidade do analisador de O₂ (D67) | se o período contém O₂ de mais de um analisador, a EULER não atribui a média à incerteza de um instrumento escolhido por moda; a análise indireta se abstém com motivo | **feito e testado** |
+| Interpretação de O₂ (D67) | título passou de “mais excesso de ar” para “O₂ maior nos gases”; o texto explica que O₂ sozinho não separa excesso de ar na combustão de entrada de ar falso e indica comparação no mesmo ponto / montante-jusante | **feito e testado** |
+| Estado do vapor (D68) | a hipótese atual do balanço direto — vapor saturado seco, x = 1 — passou a ser publicada estruturadamente no resultado/JSON, além do texto da fronteira | **feito e testado** |
+| Escopo do produto | README e visão de produto deixaram de afirmar compatibilidade com “qualquer caldeira”; o domínio suportado passa a ser descrito como algo que cresce por validação | **feito** |
+| Revisão automática | primeira rodada encontrou 2 problemas de lint; segunda encontrou 1 regressão textual; terceira encontrou o limite de 220 caracteres do resumo. Todos foram corrigidos antes da integração | **feito** |
+| CI final | `ruff check .`, `ruff format --check .` e `pytest -q` com extras de validação | **342 testes passando; lint/format sem erros** |
+
+**Não foi alterado:** `tests/golden/`, dados do demo, equações de referência, critérios de
+incerteza ou números usados na demonstração.
+
+**Continua pendente para tickets próprios, porque exige ampliar contrato de dados e validação
+humana:** usar vapor superaquecido/título medido no caminho principal; normalização por carga
+e baseline multivariável; tratamento explícito de regimes transitórios; quantificação de purga;
+modelos de transferência/UA para fouling; primeiro ensaio com dados reais autorizados.
