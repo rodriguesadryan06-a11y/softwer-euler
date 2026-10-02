@@ -19,7 +19,7 @@ from euler.deteccao import comparar
 from euler.direto import balanco_direto
 from euler.incerteza import Componente, Falta, Orcamento
 from euler.indireto import COMPOSICAO_REFERENCIA, o2_seco_equivalente
-from euler.investigacao import investigar
+from euler.investigacao import indireto_periodo, investigar
 from euler.periodos import ResumoPeriodo, _cenarios, resumir_periodo
 from euler.relatorio import gerar_html, mudou_detectavel
 from euler.tipos import AnaliseBloqueada, Grandeza
@@ -300,6 +300,51 @@ def test_a5_o2_umido_fora_do_dominio_e_recusado():
 @pytest.mark.parametrize("o2", [0.5, 4, 8, 12, 16, 18])
 def test_a5_o2_seco_nunca_menor_que_o_umido(o2, w):
     assert o2_seco_equivalente(o2, COMPOSICAO_REFERENCIA, w) >= o2
+
+
+# ---------------------------------------------------------------- A6 · ponto físico dos gases
+
+
+def test_a6_dois_pontos_de_gases_no_mesmo_periodo_bloqueiam_o_indireto():
+    """Temperaturas/O₂ de pontos diferentes não podem virar uma média física única."""
+    pacote, lim = montar([Periodo(G01, dias=3)])
+    diario = pacote.importacoes["diario"].dados
+    ini, fim = lim[0]
+    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+    idx = diario.index[sel]
+    metade = len(idx) // 2
+    diario.loc[idx[:metade], "ponto_gases_id"] = "SAIDA-CALDEIRA"
+    diario.loc[idx[metade:], "ponto_gases_id"] = "POS-ECONOMIZADOR"
+
+    r = resumir_periodo(pacote, ini, fim)
+    assert "ponto_gases" in r.bloqueios
+    assert "mais de um ponto" in r.bloqueios["ponto_gases"].motivo
+    i = indireto_periodo(r, p_gases=1.01325)
+    assert i.resultado is None and i.bloqueio is not None
+    assert "ponto" in i.bloqueio.motivo
+
+
+def test_a6_um_unico_ponto_de_gases_preserva_o_calculo():
+    pacote, lim = montar([Periodo(G01, dias=3)])
+    diario = pacote.importacoes["diario"].dados
+    ini, fim = lim[0]
+    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+    diario.loc[sel, "ponto_gases_id"] = "SAIDA-CALDEIRA"
+
+    r = resumir_periodo(pacote, ini, fim)
+    assert r.ponto_gases_id == "SAIDA-CALDEIRA"
+    assert "ponto_gases" not in r.bloqueios
+    assert indireto_periodo(r, p_gases=1.01325).resultado is not None
+
+
+def test_a6_o2_nao_e_rotulado_como_causa_unica_de_excesso_de_ar():
+    pacote, lim = montar([Periodo(G01), Periodo(G01, o2_seco_pct=10.5)])
+    j = investigar(pacote, lim[0], lim[1])
+    h = next(x for x in j["hipoteses"] if x["id"] == "excesso_ar")
+    texto = " ".join(str(h.get(k, "")) for k in ("titulo", "porque", "proxima_verificacao", "fonte"))
+    texto = texto.lower()
+    assert "dilui" in texto or "ar falso" in texto
+    assert "não separa" in texto or "nao separa" in texto
 
 
 # ---------------------------------------------------------------- relatório: quatro estados
