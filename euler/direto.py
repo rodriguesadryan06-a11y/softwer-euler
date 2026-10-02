@@ -56,6 +56,7 @@ def _fronteira_estado(estado: str, origem: str) -> str:
         "cinzas, vazamentos e vapor usado antes do medidor."
     )
 
+
 MEDICOES_DIRETO = (
     "totalizador de vapor",
     "pressão do vapor",
