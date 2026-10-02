@@ -1057,8 +1057,8 @@ def investigar(
             st_res,
             av_res,
             porque,
-            "Medir a massa purgada (número e duração sozinhos não determinam energia), medir CO "
-            "nos gases e procurar vazamentos de vapor e de condensado.",
+            "Medir a massa das purgas (número e duração sozinhos não determinam energia), "
+            "medir CO nos gases e procurar vazamentos de vapor e de condensado.",
             "Diferença entre os dois caminhos (direto e indireto), que compartilham a umidade.",
             ("balanço direto", "perda nos gases", "purgas"),
             residuo,
