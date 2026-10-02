@@ -46,6 +46,60 @@ def test_estado_do_vapor_assumido_fica_explicito_no_resultado(caso):
     assert "saturado" in b.fronteira.lower()
 
 
+def test_vapor_superaquecido_medido_aumenta_delta_h_sem_mudar_combustivel():
+    pacote, limites = montar([Periodo(G01, outras_perdas_pp=8)])
+    diario = pacote.importacoes["diario"].dados
+    base = balanco_direto(resumir_periodo(pacote, *limites[0]))
+
+    diario["estado_vapor"] = "superaquecido"
+    diario["t_vapor_c"] = 250.0
+    pacote.__dict__.pop("_cache_periodos", None)
+    superaq = balanco_direto(resumir_periodo(pacote, *limites[0]))
+
+    assert superaq.estado_vapor == "superaquecido"
+    assert superaq.estado_vapor_origem == "registrado"
+    assert superaq.t_vapor_c == pytest.approx(250.0)
+    assert superaq.delta_h_mj_kg.valor > base.delta_h_mj_kg.valor
+    assert superaq.eficiencia.valor > base.eficiencia.valor
+    assert "superaquecido" in superaq.fronteira.lower()
+
+
+def test_vapor_umido_com_titulo_medido_reduz_delta_h():
+    pacote, limites = montar([Periodo(G01, outras_perdas_pp=8)])
+    diario = pacote.importacoes["diario"].dados
+    base = balanco_direto(resumir_periodo(pacote, *limites[0]))
+
+    diario["estado_vapor"] = "umido"
+    diario["titulo_vapor_frac"] = 0.95
+    pacote.__dict__.pop("_cache_periodos", None)
+    umido = balanco_direto(resumir_periodo(pacote, *limites[0]))
+
+    assert umido.estado_vapor == "umido"
+    assert umido.estado_vapor_origem == "registrado"
+    assert umido.titulo_vapor == pytest.approx(0.95, abs=1e-6)
+    assert umido.delta_h_mj_kg.valor < base.delta_h_mj_kg.valor
+    assert umido.eficiencia.valor < base.eficiencia.valor
+
+
+def test_estado_de_vapor_misto_no_mesmo_periodo_bloqueia_energia_util():
+    pacote, limites = montar([Periodo(G01, outras_perdas_pp=8)])
+    diario = pacote.importacoes["diario"].dados
+    ini, fim = limites[0]
+    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+    idx = diario.index[sel]
+    diario.loc[idx[: len(idx) // 2], "estado_vapor"] = "saturado_seco"
+    diario.loc[idx[len(idx) // 2 :], "estado_vapor"] = "superaquecido"
+    diario.loc[idx[len(idx) // 2 :], "t_vapor_c"] = 250.0
+    pacote.__dict__.pop("_cache_periodos", None)
+
+    r = resumir_periodo(pacote, ini, fim)
+    assert "estado_vapor" in r.bloqueios
+    b = balanco_direto(r)
+    assert b.energia_util_gj is None
+    assert b.eficiencia is None
+    assert any("mais de um estado" in x.motivo for x in b.bloqueios)
+
+
 def test_resultado_tem_intervalo_quando_ha_incerteza_declarada(caso):
     pacote, limites = caso
     b = balanco_direto(resumir_periodo(pacote, *limites[0]))
