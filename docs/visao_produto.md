@@ -1,7 +1,7 @@
 # EULER · Visão de produto (resumo para a equipe e para os agentes)
 
 ## Em uma frase
-O sistema que diz **quanto de energia a fábrica comprou, quanto virou vapor e onde o resto foi parar**, para qualquer caldeira, com os dados que ela já tem.
+O sistema que transforma dados operacionais de caldeiras em uma investigação físico-energética auditável: **quanto de energia entrou, quanto virou vapor, quais perdas mensuráveis mudaram e o que os dados ainda não permitem explicar**. O domínio suportado cresce por validação; não se assume compatibilidade com qualquer caldeira.
 
 ## O teste de startup
 A EULER consegue vender e atender o **centésimo cliente sem os fundadores na sala**? Toda decisão de produto deve aproximar a resposta de "sim".
