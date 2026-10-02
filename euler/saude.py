@@ -23,13 +23,18 @@ from typing import Literal
 
 import pandas as pd
 
-from euler.baseline import BaselineCarga, ObservacaoCarga, ajustar_baseline_carga, residual_normalizado
+from euler.baseline import (
+    BaselineCarga,
+    ObservacaoCarga,
+    ajustar_baseline_carga,
+    residual_normalizado,
+)
 from euler.deteccao import Comparacao, comparar
 from euler.direto import balanco_direto
 from euler.formato import num
 from euler.io import Pacote
 from euler.periodos import periodos_entre_estoques, resumir_periodo
-from euler.tipos import Grandeza
+from euler.tipos import AnaliseBloqueada, Grandeza
 
 Estado = Literal["referencia", "mudou", "estavel", "nao_da_para_dizer"]
 Selo = Literal["mudou", "estavel", "nao_da_para_dizer"]
@@ -107,12 +112,8 @@ def _baseline_carga(
         )
     try:
         modelo = ajustar_baseline_carga(obs)
-    except Exception as erro:
-        from euler.tipos import AnaliseBloqueada
-
-        if isinstance(erro, AnaliseBloqueada):
-            return None, {}
-        raise
+    except AnaliseBloqueada:
+        return None, {}
 
     residuos: dict[int, float | None] = {}
     for i, r in resumos.items():
@@ -126,13 +127,8 @@ def _baseline_carga(
             residuos[i] = residual_normalizado(
                 modelo, carga_t_h=carga, combustivel_t_h=combustivel
             )
-        except Exception as erro:
-            from euler.tipos import AnaliseBloqueada
-
-            if isinstance(erro, AnaliseBloqueada):
-                residuos[i] = None
-            else:
-                raise
+        except AnaliseBloqueada:
+            residuos[i] = None
     return modelo, residuos
 
 
