@@ -14,8 +14,10 @@ import pandas as pd
 import pytest
 
 from euler.capacidades import avaliar
+from euler.fluxos import fluxo_entalpia_vapor
 from euler.io import importar_pacote
 from euler.io.diario import importar_diario
+from euler.planta import mapear_planta
 from euler.vapor import h_agua_mj_kg, h_vapor_mj_kg, t_sat_c
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -46,6 +48,7 @@ def _bruto_euler(real: pd.DataFrame) -> pd.DataFrame:
             "p_vapor_bar_man": real["steam_pressure_psig"] * PSI_PARA_BAR,
             "estado_vapor": "superaquecido",
             "t_vapor_c": _f_para_c(real["steam_temperature_f"]),
+            "vazao_vapor_t_h": real["steam_flow_kpph"] * KPPH_PARA_T_H,
             # O₂ é publicado na entrada superior do economizador (lado esquerdo).
             "o2_seco_pct": real["flue_gas_o2_left_pct"],
             "ponto_gases_id": "ECONOMIZADOR-ENTRADA-ESQ",
@@ -139,3 +142,16 @@ def test_if97_confere_com_entalpias_publicadas_pelo_bee():
 
     assert h_steam_kcal_kg == pytest.approx(caso["steam_enthalpy_kcal_kg"], rel=0.015)
     assert h_fw_kcal_kg == pytest.approx(caso["feedwater_enthalpy_kcal_kg"], rel=0.015)
+
+
+def test_euler_aproveita_o_que_o_dataset_real_tem_sem_esperar_balanco_completo(real):
+    pacote = importar_pacote({"diario": _bruto_euler(real)}, p_atm_bar=P_ATM_BAR)
+    perfil = mapear_planta(pacote)
+    assert perfil.rota("estado_vapor").situacao == "disponivel"
+    assert perfil.rota("entalpia_vapor").situacao == "disponivel"
+    assert perfil.rota("eficiencia_direta").situacao != "disponivel"
+
+    fluxo = fluxo_entalpia_vapor(pacote.dados("diario"))
+    assert fluxo.n == len(real)
+    assert 100 < fluxo.media_mw < 250
+    assert fluxo.minimo_mw > 0
