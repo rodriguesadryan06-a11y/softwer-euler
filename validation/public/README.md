@@ -29,9 +29,26 @@ Também foi materializado `bee_direct_method_benchmark.json`, baseado no exemplo
 
 A eficiência de 72,5% publicada **não é usada como golden da EULER**, porque aquele exemplo está em base GCV/HHV enquanto o caminho direto atual da EULER foi definido em PCI/LHV. Misturar as bases produziria uma validação falsa.
 
-## Segundo candidato real: Wonji Sugar Factory
+## Segundo caso materializado: Wonji-Shoa, Etiópia
 
-Também foi localizado o dataset público **31.5 MW Wonji sugar factory steam drum data** (Mendeley Data, DOI 10.17632/g5t4yxymy7.1, CC BY 4.0), medido numa caldeira de biomassa e descrito como 4 entradas / 3 saídas. Ele é especialmente interessante por ser biomassa, mas não foi materializado aqui sem obter e conferir o arquivo bruto e suas unidades. A ausência de um arquivo local é deliberada: **não inventamos colunas nem unidades para fazer o teste caber.**
+Foi adicionado `wonji_bagasse_snapshot.json`, uma transcrição factual mínima de dois pontos de
+operação apresentados na dissertação de Asaye Mebratu (Addis Ababa University, 2016) como
+valores obtidos do **process control board** da Wonji-Shoa Sugar Mill:
+
+- água de alimentação na entrada da caldeira: 17,36 kg/s, 96,74 °C, 61,08 bar;
+- vapor superaquecido para a turbina: 17,36 kg/s, 466,67 °C, 61,08 bar.
+
+O teste compara as entalpias da IF97 com os valores publicados. Isso acrescenta um caso de
+**biomassa/bagaço** e vapor superaquecido, independente da telemetria de carvão de Zhejiang.
+
+O trabalho também calcula 7,24 kg/s de bagaço a partir de uma razão recomendada vapor/bagaço
+de 2,4. Esse valor **não entra como combustível medido** na validação da EULER. Fazer isso
+transformaria uma hipótese do trabalho em medição de planta.
+
+Separadamente, continua localizado o dataset público **31.5 MW Wonji sugar factory steam drum
+data** (Mendeley Data, DOI 10.17632/g5t4yxymy7.1, CC BY 4.0), medido numa caldeira de biomassa
+e descrito como 4 entradas / 3 saídas. O arquivo bruto ainda não foi materializado sem conferência
+das unidades: **não inventamos colunas nem unidades para fazer o teste caber.**
 
 ## Regra
 
