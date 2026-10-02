@@ -100,10 +100,10 @@ def test_csv_do_excel_brasileiro_ponto_e_virgula_e_virgula_decimal():
 
 def test_diario_aceita_estado_temperatura_e_titulo_do_vapor():
     conteudo = (
-        "caldeira_id,instante_observado,estado_vapor,t_vapor_c,titulo_vapor_frac\n"
-        "C1,2026-10-05T08:00:00-03:00,superaquecido,250,\n"
-        "C1,2026-10-05T10:00:00-03:00,umido,,0.95\n"
-    ).encode()
+        b"caldeira_id,instante_observado,estado_vapor,t_vapor_c,titulo_vapor_frac\n"
+        b"C1,2026-10-05T08:00:00-03:00,superaquecido,250,\n"
+        b"C1,2026-10-05T10:00:00-03:00,umido,,0.95\n"
+    )
     imp = importar_diario(conteudo)
     assert not imp.bloqueada
     assert list(imp.dados["estado_vapor"]) == ["superaquecido", "umido"]
