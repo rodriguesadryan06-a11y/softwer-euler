@@ -148,9 +148,7 @@ def mapear_planta(pacote: Pacote) -> PerfilPlanta:
         if coluna in (amostras.columns if amostras is not None else []):
             _sinal(sinais, coluna, nome, "amostras", _n(amostras, coluna), len(amostras))
         elif coluna in (combustivel.columns if combustivel is not None else []):
-            _sinal(
-                sinais, coluna, nome, "combustivel", _n(combustivel, coluna), len(combustivel)
-            )
+            _sinal(sinais, coluna, nome, "combustivel", _n(combustivel, coluna), len(combustivel))
         elif coluna in (diario.columns if diario is not None else []):
             _sinal(sinais, coluna, nome, "diario", _n(diario, coluna), total_d)
 
@@ -160,7 +158,9 @@ def mapear_planta(pacote: Pacote) -> PerfilPlanta:
         n_rec = int((combustivel["tipo"] == "recebimento").sum())
         n_est = int((combustivel["tipo"] == "estoque").sum())
         if n_rec:
-            sinais["recebimentos"] = Sinal("recebimentos", ROTULOS["recebimentos"], "combustivel", n_rec)
+            sinais["recebimentos"] = Sinal(
+                "recebimentos", ROTULOS["recebimentos"], "combustivel", n_rec
+            )
         if n_est:
             sinais["estoques"] = Sinal("estoques", ROTULOS["estoques"], "combustivel", n_est)
 
