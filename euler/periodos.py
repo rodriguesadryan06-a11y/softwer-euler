@@ -471,18 +471,30 @@ def _energia_util_intervalos(tot: pd.DataFrame, r: ResumoPeriodo, escala: float)
         if r.estado_vapor == "superaquecido":
             tv = pd.Series([ant.t_vapor_c, atual.t_vapor_c]).dropna()
             if len(tv) != 2:
+                if r.estado_vapor_origem == "medido":
+                    r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                        "Falta temperatura do vapor em um intervalo do totalizador.",
+                        ["temperatura do vapor nas duas bordas de cada intervalo"],
+                    )
                 continue
             kwargs["t_vapor_c"] = float(tv.mean())
         elif r.estado_vapor == "umido":
             x = pd.Series([ant.titulo_vapor, atual.titulo_vapor]).dropna()
             if len(x) != 2:
+                if r.estado_vapor_origem == "medido":
+                    r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                        "Falta título do vapor em um intervalo do totalizador.",
+                        ["título do vapor nas duas bordas de cada intervalo"],
+                    )
                 continue
             kwargs["titulo"] = float(x.mean())
         try:
             soma += massa * delta_h_mj_kg(
                 float(p.mean()), r.estado_vapor, float(t.mean()), **kwargs
             )
-        except AnaliseBloqueada:
+        except AnaliseBloqueada as bloqueio:
+            if r.estado_vapor_origem == "medido":
+                r.bloqueios["estado_vapor"] = bloqueio
             continue
         cobertos += 1
     if linhas and cobertos == len(linhas) - 1:
