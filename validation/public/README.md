@@ -38,8 +38,12 @@ valores obtidos do **process control board** da Wonji-Shoa Sugar Mill:
 - água de alimentação na entrada da caldeira: 17,36 kg/s, 96,74 °C, 61,08 bar;
 - vapor superaquecido para a turbina: 17,36 kg/s, 466,67 °C, 61,08 bar.
 
-O teste compara as entalpias da IF97 com os valores publicados. Isso acrescenta um caso de
-**biomassa/bagaço** e vapor superaquecido, independente da telemetria de carvão de Zhejiang.
+O teste confronta as entalpias da IF97 com os valores publicados. A água de alimentação
+fica compatível em tolerância de engenharia, mas o vapor publicado fica pouco mais de 2% acima
+da IF97 para a interpretação direta de 61,08 bar e 466,67 °C. **Não alargamos a tolerância para
+fazer o teste passar**: o caso fica registrado como discrepância externa a esclarecer. Ainda
+assim ele acrescenta um caso real de **biomassa/bagaço** e vapor superaquecido, independente
+da telemetria de carvão de Zhejiang.
 
 O trabalho também calcula 7,24 kg/s de bagaço a partir de uma razão recomendada vapor/bagaço
 de 2,4. Esse valor **não entra como combustível medido** na validação da EULER. Fazer isso
