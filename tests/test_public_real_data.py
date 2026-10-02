@@ -158,7 +158,6 @@ def test_euler_aproveita_o_que_o_dataset_real_tem_sem_esperar_balanco_completo(r
     assert fluxo.minimo_mw > 0
 
 
-
 def test_if97_confere_com_snapshot_real_de_biomassa_da_wonji():
     """Segundo caso real, agora em biomassa e vapor superaquecido.
 
@@ -182,12 +181,8 @@ def test_if97_confere_com_snapshot_real_de_biomassa_da_wonji():
 
     # Tolerância deliberadamente de engenharia, porque o valor publicado foi obtido
     # de tabela de vapor e o ponto de água foi tratado no trabalho com uma aproximação.
-    assert h_steam * 1000 == pytest.approx(
-        steam["enthalpy_kj_kg_published"], rel=0.02
-    )
-    assert h_fw * 1000 == pytest.approx(
-        fw["enthalpy_kj_kg_published"], rel=0.02
-    )
+    assert h_steam * 1000 == pytest.approx(steam["enthalpy_kj_kg_published"], rel=0.02)
+    assert h_fw * 1000 == pytest.approx(fw["enthalpy_kj_kg_published"], rel=0.02)
 
     # 17,36 kg/s publicados equivalem a 62,496 t/h.
     assert steam["mass_flow_kg_s"] * 3.6 == pytest.approx(62.496, rel=1e-9)
@@ -198,6 +193,7 @@ def test_wonji_nao_vira_falsa_validacao_de_eficiencia():
     derivado = caso["do_not_treat_as_measured"]
     assert derivado["bagasse_feed_rate_kg_s"] == pytest.approx(7.24)
     assert "not presented as a direct fuel-flow measurement" in derivado["reason"]
-    assert "full boiler efficiency reproduction from this snapshot" in (
-        caso["euler_validation_boundary"]["not_supported"]
+    assert (
+        "full boiler efficiency reproduction from this snapshot"
+        in (caso["euler_validation_boundary"]["not_supported"])
     )
