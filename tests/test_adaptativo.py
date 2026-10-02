@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from euler.fluxos import balanco_por_vazoes
-from euler.io import importar_pacote
+from euler.io import fontes_de_arquivos, importar_pacote
 from euler.io.diario import importar_diario
 from euler.planta import mapear_planta
 
@@ -113,3 +113,13 @@ def test_balanco_por_vazoes_nao_atravessa_lacuna_grande():
     imp = importar_diario(bruto, p_atm_bar=1.01325)
     with pytest.raises(Exception, match="Cobertura comum insuficiente|Nenhum intervalo"):
         balanco_por_vazoes(imp.dados, cobertura_minima=0.8)
+
+
+def test_nome_do_arquivo_nao_precisa_ser_padrao_quando_o_cabecalho_e_inequivoco():
+    conteudo = (
+        "boiler_id,timestamp,steam_pressure_bar_g,steam_temperature_c,steam_flow_t_h\n"
+        "B1,2026-10-01T08:00:00-03:00,9,250,10\n"
+    ).encode()
+    fontes, avisos = fontes_de_arquivos({"historian_export_october.csv": conteudo})
+    assert set(fontes) == {"diario"}
+    assert any(a.tipo == "arquivo_inferido" for a in avisos)
