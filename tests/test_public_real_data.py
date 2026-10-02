@@ -16,11 +16,12 @@ import pytest
 from euler.capacidades import avaliar
 from euler.io import importar_pacote
 from euler.io.diario import importar_diario
-from euler.vapor import h_vapor_mj_kg, t_sat_c
+from euler.vapor import h_agua_mj_kg, h_vapor_mj_kg, t_sat_c
 
 RAIZ = Path(__file__).resolve().parents[1]
 DADOS = RAIZ / "validation" / "public" / "zhejiang_real_sample.csv"
 MANIFESTO = RAIZ / "validation" / "public" / "manifest.json"
+BEE = RAIZ / "validation" / "public" / "bee_direct_method_benchmark.json"
 
 PSI_PARA_BAR = 0.0689475729
 P_ATM_BAR = 1.01325
@@ -127,3 +128,14 @@ def test_euler_se_abstem_do_balanco_completo_com_telemetria_real_incompleta(real
     assert any("totalizador" in m.lower() for m in caps["energia_vapor"].motivos)
     assert any("água de alimentação" in m.lower() for m in caps["energia_vapor"].motivos)
     assert caps["eficiencia_direta"].situacao == "bloqueada"
+
+
+def test_if97_confere_com_entalpias_publicadas_pelo_bee():
+    """Benchmark externo; não compara eficiência porque BEE usa GCV e EULER usa PCI."""
+    caso = json.loads(BEE.read_text(encoding="utf-8"))["published"]
+    p_abs = caso["steam_pressure_kgf_cm2_g"] * 0.980665 + P_ATM_BAR
+    h_steam_kcal_kg = h_vapor_mj_kg(p_abs, "saturado_seco") * 1000 / 4.1868
+    h_fw_kcal_kg = h_agua_mj_kg(p_abs, caso["feedwater_temperature_c"]) * 1000 / 4.1868
+
+    assert h_steam_kcal_kg == pytest.approx(caso["steam_enthalpy_kcal_kg"], rel=0.015)
+    assert h_fw_kcal_kg == pytest.approx(caso["feedwater_enthalpy_kcal_kg"], rel=0.015)
