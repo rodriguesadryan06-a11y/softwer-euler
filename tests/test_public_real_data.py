@@ -185,9 +185,9 @@ def test_if97_confere_com_snapshot_real_de_biomassa_da_wonji():
     # diverge pouco mais de 2% da IF97 nesta interpretação de P/T. Isso é tratado como
     # discrepância externa a investigar, não como motivo para alargar a tolerância.
     assert h_fw * 1000 == pytest.approx(fw["enthalpy_kj_kg_published"], rel=0.02)
-    erro_rel_steam = abs(h_steam * 1000 - steam["enthalpy_kj_kg_published"]) / steam[
-        "enthalpy_kj_kg_published"
-    ]
+    erro_rel_steam = (
+        abs(h_steam * 1000 - steam["enthalpy_kj_kg_published"]) / steam["enthalpy_kj_kg_published"]
+    )
     assert 0.02 < erro_rel_steam < 0.03
 
     # 17,36 kg/s publicados equivalem a 62,496 t/h.
