@@ -816,9 +816,7 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         # mesma fronteira física. Misturar, por exemplo, saída da caldeira e pós-economizador
         # cria uma média que não representa nenhum estado real (D67).
         usa_gases = operando["t_gases_c"].notna() | operando["o2_seco_pct"].notna()
-        pontos = (
-            operando.loc[usa_gases, "ponto_gases_id"].dropna().astype(str).str.strip()
-        )
+        pontos = operando.loc[usa_gases, "ponto_gases_id"].dropna().astype(str).str.strip()
         pontos = tuple(dict.fromkeys(p for p in pontos if p))
         if len(pontos) == 1:
             r.ponto_gases_id = pontos[0]
