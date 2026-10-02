@@ -29,6 +29,7 @@ from euler.incerteza import Componente, Falta, Orcamento, incerteza_padrao
 from euler.io import Pacote
 from euler.io.leitura import FUSO_PADRAO
 from euler.tipos import AnaliseBloqueada, Grandeza
+from euler.transferencia import ua_economizador
 from euler.vapor import delta_h_mj_kg
 
 LEITURAS_DIARIO = {
@@ -41,6 +42,7 @@ LEITURAS_DIARIO = {
     "t_vapor_c": "°C",
     "titulo_vapor": "fração",
     "vazao_agua_alim_t_h": "t/h",
+    "p_agua_eco_bar_abs": "bar abs",
     "t_agua_eco_entrada_c": "°C",
     "t_agua_eco_saida_c": "°C",
     "t_gases_eco_entrada_c": "°C",
@@ -230,6 +232,8 @@ class ResumoPeriodo:
     purgas_n: float | None = None
     purgas_s: float | None = None
     massa_purga_kg: float | None = None
+    q_economizador_mw: float | None = None
+    ua_economizador_mw_k: float | None = None
     eventos: list[dict] = field(default_factory=list)
     bloqueios: dict[str, AnaliseBloqueada] = field(default_factory=dict)
 
@@ -962,6 +966,28 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
             )
             if g is not None:
                 r.leituras_grandeza[coluna] = g
+        eco = (
+            "vazao_agua_alim_t_h",
+            "p_agua_eco_bar_abs",
+            "t_agua_eco_entrada_c",
+            "t_agua_eco_saida_c",
+            "t_gases_eco_entrada_c",
+            "t_gases_eco_saida_c",
+        )
+        if all(nome in r.leituras for nome in eco):
+            try:
+                resultado_ua = ua_economizador(
+                    vazao_agua_t_h=r.leituras["vazao_agua_alim_t_h"].media,
+                    p_agua_bar_abs=r.leituras["p_agua_eco_bar_abs"].media,
+                    t_agua_entrada_c=r.leituras["t_agua_eco_entrada_c"].media,
+                    t_agua_saida_c=r.leituras["t_agua_eco_saida_c"].media,
+                    t_gases_entrada_c=r.leituras["t_gases_eco_entrada_c"].media,
+                    t_gases_saida_c=r.leituras["t_gases_eco_saida_c"].media,
+                )
+                r.q_economizador_mw = resultado_ua.q_mw
+                r.ua_economizador_mw_k = resultado_ua.ua_mw_k
+            except AnaliseBloqueada as bloqueio:
+                r.bloqueios["ua_economizador"] = bloqueio
         if no_periodo["purgas_n"].notna().any():
             r.purgas_n = float(no_periodo["purgas_n"].sum())
         if no_periodo["purgas_s"].notna().any():
