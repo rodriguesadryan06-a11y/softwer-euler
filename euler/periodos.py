@@ -843,14 +843,21 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
         r.n_leituras_diario = len(operando)
 
+        estado_series = operando["estado_vapor"].replace("", pd.NA)
         estados = tuple(
             dict.fromkeys(
                 str(x).strip()
-                for x in operando["estado_vapor"].dropna()
+                for x in estado_series.dropna()
                 if str(x).strip()
             )
         )
-        if len(estados) == 1:
+        if estados and estado_series.notna().sum() != len(operando):
+            r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                "O estado do vapor foi registrado só em parte das leituras do período. "
+                "A EULER não completa o restante por hipótese.",
+                ["registrar o estado do vapor em todas as leituras usadas no período"],
+            )
+        elif len(estados) == 1:
             r.estado_vapor = estados[0]
             r.estado_vapor_origem = "registrado"
         elif len(estados) > 1:
