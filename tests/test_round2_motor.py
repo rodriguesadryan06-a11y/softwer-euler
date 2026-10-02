@@ -4,7 +4,6 @@ Os testes são intencionalmente conservadores: novas camadas só concluem quando
 necessários existem; ausência continua sendo ausência, nunca zero.
 """
 
-import pandas as pd
 import pytest
 
 from construtor_caso import Periodo, montar
@@ -13,8 +12,8 @@ from euler.baseline import ObservacaoCarga, ajustar_baseline_carga, residual_nor
 from euler.direto import balanco_direto
 from euler.periodos import resumir_periodo
 from euler.purga import energia_purga_gj
-from euler.transferencia import ua_economizador
 from euler.tipos import AnaliseBloqueada
+from euler.transferencia import ua_economizador
 from euler.vapor import delta_h_mj_kg
 
 
