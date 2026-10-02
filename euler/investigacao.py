@@ -831,8 +831,8 @@ def investigar(
             "excesso_ar",
             titulo(
                 c_o2,
-                "O₂ maior / maior diluição aparente dos gases",
-                "O₂ menor / menor diluição aparente dos gases",
+                "O₂ maior nos gases",
+                "O₂ menor nos gases",
                 "O₂ diferente nos gases",
             ),
             st,
