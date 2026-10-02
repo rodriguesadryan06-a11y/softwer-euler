@@ -52,6 +52,9 @@ Uma linha por leitura do operador (ou do sistema) na caldeira.
 | `ocorrencia` | — | não | Ocorrência anotada pelo operador. |  |  |
 | `flag_instrumento_indisponivel` | true/false | não | Marque true se algum instrumento estava fora de serviço nesta leitura. | `false` |  |
 | `origem_dado` | — | não | De onde vem o dado. Dados reais de clientes nunca entram no repositório. Valores: `sintetico`, `publico`, `real`. | `sintetico` |  |
+| `estado_vapor` | — | não | Estado termodinâmico do vapor na linha medida. Se vazio, a EULER mantém a hipótese conservadora atual de vapor saturado seco e marca essa hipótese como assumida. Valores: `saturado_seco`, `umido`, `superaquecido`. |  |  |
+| `t_vapor_c` | °C | não | Temperatura do vapor quando o estado registrado é superaquecido. |  | 50 a 650 |
+| `titulo_vapor_frac` | fração | não | Título x do vapor úmido (0 a 1). Só é usado quando o estado registrado é umido. |  | 0 a 1 |
 
 ### `combustivel.csv` · Combustível: recebimentos e estoques
 
