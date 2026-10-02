@@ -8,7 +8,7 @@ from formatacao import COLUNAS_RESUMO, SITUACAO_PERIODO, linhas_por_periodo
 
 from euler.capacidades import avaliar
 from euler.fluxos import balanco_por_vazoes
-from euler.formato import num, plural
+from euler.formato import plural
 from euler.periodos import periodos_entre_estoques
 from euler.planta import mapear_planta
 from euler.tipos import AnaliseBloqueada
