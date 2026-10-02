@@ -165,7 +165,6 @@ def mapear_planta(pacote: Pacote) -> PerfilPlanta:
             sinais["estoques"] = Sinal("estoques", ROTULOS["estoques"], "combustivel", n_est)
 
     obs = set(sinais)
-    estado = ("estado_vapor",)
     termo_vapor = ("p_vapor_bar_abs", "t_agua_alim_c")
     rotas = [
         _avaliar_rota(
