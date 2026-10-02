@@ -29,6 +29,7 @@ from euler.incerteza import Componente, Falta, Orcamento, incerteza_padrao
 from euler.io import Pacote
 from euler.io.leitura import FUSO_PADRAO
 from euler.tipos import AnaliseBloqueada, Grandeza
+from euler.transferencia import ua_economizador
 from euler.vapor import delta_h_mj_kg
 
 LEITURAS_DIARIO = {
@@ -38,8 +39,16 @@ LEITURAS_DIARIO = {
     "t_ar_c": "°C",
     "t_agua_alim_c": "°C",
     "p_vapor_bar_abs": "bar abs",
+    "p_purga_bar_abs": "bar abs",
     "t_vapor_c": "°C",
     "titulo_vapor_frac": "fração",
+    "vazao_agua_alim_t_h": "t/h",
+    "p_agua_eco_bar_abs": "bar abs",
+    "t_agua_eco_entrada_c": "°C",
+    "t_agua_eco_saida_c": "°C",
+    "t_gases_eco_entrada_c": "°C",
+    "t_gases_eco_saida_c": "°C",
+    "dp_gases_mbar": "mbar",
 }
 ELEMENTOS = ("C", "H", "O", "N", "S")
 TOLERANCIA_INSTANTE = pd.Timedelta(minutes=1)
@@ -54,6 +63,10 @@ INSTRUMENTOS = {
     "t_gases_c": (("gases",), ("termopar", "temperatura dos gases")),
     "o2_seco_pct": (("o2",), ("o₂", "o2", "oxigênio")),
     "p_vapor_bar_abs": (("manometro", "pressao"), ("manômetro", "manometro", "pressão")),
+    "p_purga_bar_abs": (
+        ("pressao_purga", "purga_pressao"),
+        ("pressão da purga", "pressao da purga"),
+    ),
     "t_vapor_c": (("vapor_temperatura", "termometro_vapor"), ("temperatura do vapor",)),
     "titulo_vapor_frac": (
         ("titulo_vapor", "qualidade_vapor"),
@@ -69,6 +82,7 @@ ROTULO_LEITURA = {
     "t_gases_c": "temperatura dos gases",
     "o2_seco_pct": "O₂ nos gases",
     "p_vapor_bar_abs": "pressão do vapor",
+    "p_purga_bar_abs": "pressão da purga",
     "t_vapor_c": "temperatura do vapor",
     "titulo_vapor_frac": "título do vapor",
     "t_agua_alim_c": "temperatura da água de alimentação",
@@ -199,6 +213,8 @@ class ResumoPeriodo:
     cobertura_diario: float | None = None
     ponto_gases_id: str | None = None
     instrumento_o2_id: str | None = None
+    regimes_presentes: tuple[str, ...] = ()
+    apto_baseline_carga: bool = False
     estado_vapor: str = "saturado_seco"
     estado_vapor_origem: str = "assumido"
     vapor_t: Grandeza | None = None
@@ -223,6 +239,9 @@ class ResumoPeriodo:
     umidade_por_fornecedor: dict[str, float] = field(default_factory=dict)
     purgas_n: float | None = None
     purgas_s: float | None = None
+    massa_purga_kg: float | None = None
+    q_economizador_mw: float | None = None
+    ua_economizador_mw_k: float | None = None
     eventos: list[dict] = field(default_factory=list)
     bloqueios: dict[str, AnaliseBloqueada] = field(default_factory=dict)
 
@@ -842,6 +861,14 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         no_periodo = diario[
             (diario["instante_observado"] >= inicio) & (diario["instante_observado"] < fim)
         ]
+        regimes = [str(x) for x in no_periodo["regime"].dropna()]
+        if no_periodo["regime"].isna().any():
+            regimes.append("nao_informado")
+        r.regimes_presentes = tuple(dict.fromkeys(regimes))
+        r.apto_baseline_carga = bool(r.regimes_presentes) and set(r.regimes_presentes) == {
+            "estavel"
+        }
+
         operando = no_periodo[no_periodo["regime"].fillna("estavel") != "parada"]
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
         r.n_leituras_diario = len(operando)
@@ -917,10 +944,34 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
             )
             if g is not None:
                 r.leituras_grandeza[coluna] = g
+        eco = (
+            "vazao_agua_alim_t_h",
+            "p_agua_eco_bar_abs",
+            "t_agua_eco_entrada_c",
+            "t_agua_eco_saida_c",
+            "t_gases_eco_entrada_c",
+            "t_gases_eco_saida_c",
+        )
+        if all(nome in r.leituras for nome in eco):
+            try:
+                resultado_ua = ua_economizador(
+                    vazao_agua_t_h=r.leituras["vazao_agua_alim_t_h"].media,
+                    p_agua_bar_abs=r.leituras["p_agua_eco_bar_abs"].media,
+                    t_agua_entrada_c=r.leituras["t_agua_eco_entrada_c"].media,
+                    t_agua_saida_c=r.leituras["t_agua_eco_saida_c"].media,
+                    t_gases_entrada_c=r.leituras["t_gases_eco_entrada_c"].media,
+                    t_gases_saida_c=r.leituras["t_gases_eco_saida_c"].media,
+                )
+                r.q_economizador_mw = resultado_ua.q_mw
+                r.ua_economizador_mw_k = resultado_ua.ua_mw_k
+            except AnaliseBloqueada as bloqueio:
+                r.bloqueios["ua_economizador"] = bloqueio
         if no_periodo["purgas_n"].notna().any():
             r.purgas_n = float(no_periodo["purgas_n"].sum())
         if no_periodo["purgas_s"].notna().any():
             r.purgas_s = float(no_periodo["purgas_s"].sum())
+        if no_periodo["massa_purga_kg"].notna().any():
+            r.massa_purga_kg = float(no_periodo["massa_purga_kg"].sum())
         _vapor(pacote, diario, r)
     _combustivel(pacote, r)
     _mistura(pacote, r)
