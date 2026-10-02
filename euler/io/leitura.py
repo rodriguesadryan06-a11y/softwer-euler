@@ -38,6 +38,9 @@ _MARCAS_SEM_DADO = {"-", "--", "nan", "na", "n/a", "s/d", "sd", "null", "none"}
 # Aliases deliberadamente unitários: não aceitamos nomes ambíguos como "steam_flow" sem unidade.
 # A camada adaptativa deve facilitar integração sem adivinhar grandeza/unidade.
 ALIASES_COLUNAS = {
+    "timestamp": "instante_observado",
+    "datetime": "instante_observado",
+    "boiler_id": "caldeira_id",
     "steam_flow_t_h": "vazao_vapor_t_h",
     "steam_flow_tph": "vazao_vapor_t_h",
     "fuel_flow_kg_h": "vazao_combustivel_kg_h",
