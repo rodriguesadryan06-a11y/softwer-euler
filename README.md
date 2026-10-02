@@ -1,8 +1,10 @@
 # EULER · protótipo (Fase 0)
 
-SaaS de **investigação física** para caldeiras industriais: usa os registros que a fábrica já
-tem para dizer quanto de energia foi comprada, quanto virou vapor e onde o resto foi parar —
-e diz com clareza quando os dados **não** bastam para concluir.
+Protótipo de **investigação físico-energética** para caldeiras industriais, inicialmente
+desenvolvido para o domínio de dados e hipóteses já implementados (com forte foco em
+combustível sólido/biomassa). Usa registros que a fábrica já tem para estimar quanto de
+energia foi comprada, quanto virou vapor, quais perdas mensuráveis mudaram e o que permanece
+sem explicação — e diz com clareza quando os dados **não** bastam para concluir.
 
 > **Situação:** cálculos implementados e verificados por testes automáticos; hipóteses
 > físicas em revisão científica (nenhuma aprovada); sem validação com dados reais. Os dados
