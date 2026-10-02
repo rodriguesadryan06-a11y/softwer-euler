@@ -13,6 +13,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from euler.capacidades import avaliar
+from euler.io import importar_pacote
 from euler.io.diario import importar_diario
 from euler.vapor import h_vapor_mj_kg, t_sat_c
 
@@ -28,6 +30,28 @@ KPPH_PARA_T_H = 0.45359237
 @pytest.fixture(scope="module")
 def real():
     return pd.read_csv(DADOS)
+
+
+def _bruto_euler(real: pd.DataFrame) -> pd.DataFrame:
+    inicio = pd.Timestamp("2022-03-27T14:28:54-03:00")
+    return pd.DataFrame(
+        {
+            "linha": range(2, len(real) + 2),
+            "caldeira_id": "PUBLIC-ZHEJIANG-CFB",
+            "instante_observado": [
+                (inicio + pd.Timedelta(seconds=5 * int(i))).isoformat() for i in real["source_row"]
+            ],
+            "regime": "estavel",
+            "p_vapor_bar_man": real["steam_pressure_psig"] * PSI_PARA_BAR,
+            "estado_vapor": "superaquecido",
+            "t_vapor_c": _f_para_c(real["steam_temperature_f"]),
+            # O₂ é publicado na entrada superior do economizador (lado esquerdo).
+            "o2_seco_pct": real["flue_gas_o2_left_pct"],
+            "ponto_gases_id": "ECONOMIZADOR-ENTRADA-ESQ",
+            "instrumento_o2_id": "AIR_8301A",
+            "origem_dado": "publico",
+        }
+    )
 
 
 def _p_abs_bar(psig: pd.Series) -> pd.Series:
@@ -73,26 +97,7 @@ def test_if97_aceita_todas_as_linhas_reais_como_vapor_superaquecido(real):
 
 
 def test_importador_euler_aceita_recorte_real_apos_conversao_explicita(real):
-    inicio = pd.Timestamp("2022-03-27T14:28:54-03:00")
-    bruto = pd.DataFrame(
-        {
-            "linha": range(2, len(real) + 2),
-            "caldeira_id": "PUBLIC-ZHEJIANG-CFB",
-            "instante_observado": [
-                (inicio + pd.Timedelta(seconds=5 * int(i))).isoformat() for i in real["source_row"]
-            ],
-            "regime": "estavel",
-            "p_vapor_bar_man": real["steam_pressure_psig"] * PSI_PARA_BAR,
-            "estado_vapor": "superaquecido",
-            "t_vapor_c": _f_para_c(real["steam_temperature_f"]),
-            # O₂ é publicado na entrada superior do economizador (lado esquerdo).
-            "o2_seco_pct": real["flue_gas_o2_left_pct"],
-            "ponto_gases_id": "ECONOMIZADOR-ENTRADA-ESQ",
-            "instrumento_o2_id": "AIR_8301A",
-            "origem_dado": "publico",
-        }
-    )
-    imp = importar_diario(bruto, p_atm_bar=P_ATM_BAR)
+    imp = importar_diario(_bruto_euler(real), p_atm_bar=P_ATM_BAR)
     assert not imp.bloqueada
     assert len(imp.dados) == len(real)
     assert imp.dados["estado_vapor"].eq("superaquecido").all()
@@ -109,3 +114,16 @@ def test_fixture_nao_e_usado_para_inventar_eficiencia_global(real):
         "feedwater_temperature",
     }
     assert requeridas_para_balanco_completo.isdisjoint(colunas)
+
+
+def test_euler_se_abstem_do_balanco_completo_com_telemetria_real_incompleta(real):
+    pacote = importar_pacote({"diario": _bruto_euler(real)}, p_atm_bar=P_ATM_BAR)
+    assert pacote.origens_de_dado() == {"publico"}
+    assert not pacote.sintetico
+
+    caps = {c.id: c for c in avaliar(pacote)}
+    assert caps["registros"].habilitada
+    assert caps["energia_vapor"].situacao == "bloqueada"
+    assert any("totalizador" in m.lower() for m in caps["energia_vapor"].motivos)
+    assert any("água de alimentação" in m.lower() for m in caps["energia_vapor"].motivos)
+    assert caps["eficiencia_direta"].situacao == "bloqueada"
