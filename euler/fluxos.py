@@ -13,7 +13,16 @@ from math import isfinite
 import pandas as pd
 
 from euler.tipos import AnaliseBloqueada
-from euler.vapor import delta_h_mj_kg, t_sat_c
+from euler.vapor import delta_h_mj_kg, h_vapor_mj_kg, t_sat_c
+
+
+@dataclass(frozen=True)
+class FluxoEntalpiaVapor:
+    n: int
+    media_mw: float
+    minimo_mw: float
+    maximo_mw: float
+    nota: str
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,37 @@ def _estado_linha(row) -> tuple[str, dict]:
 
     # Compatibilidade com o motor histórico: sem T e sem estado, x=1 fica assumido.
     return "saturado_seco", {}
+
+
+def fluxo_entalpia_vapor(diario: pd.DataFrame) -> FluxoEntalpiaVapor:
+    """Fluxo de entalpia no ponto do vapor, sem fingir que isso é o duty da caldeira."""
+    obrig = {"vazao_vapor_t_h", "p_vapor_bar_abs"}
+    faltam = obrig - set(diario.columns)
+    if faltam:
+        raise AnaliseBloqueada("Faltam dados para o fluxo de entalpia do vapor.", sorted(faltam))
+    valores = []
+    for row in diario.itertuples(index=False):
+        try:
+            if pd.isna(row.vazao_vapor_t_h) or float(row.vazao_vapor_t_h) <= 0:
+                continue
+            estado, kwargs = _estado_linha(row)
+            h = h_vapor_mj_kg(float(row.p_vapor_bar_abs), estado, **kwargs)
+            valores.append(float(row.vazao_vapor_t_h) * 1000 / 3600 * h)
+        except (AnaliseBloqueada, ValueError, TypeError):
+            continue
+    if not valores:
+        raise AnaliseBloqueada("Nenhuma leitura válida para o fluxo de entalpia do vapor.")
+    serie = pd.Series(valores, dtype=float)
+    return FluxoEntalpiaVapor(
+        n=len(serie),
+        media_mw=float(serie.mean()),
+        minimo_mw=float(serie.min()),
+        maximo_mw=float(serie.max()),
+        nota=(
+            "Fluxo de entalpia no ponto de vapor pela IF97. Sem a condição da água de entrada, "
+            "não representa energia útil nem eficiência da caldeira."
+        ),
+    )
 
 
 def _potencia_vapor_mw(row) -> float:
