@@ -280,6 +280,68 @@ def _lotes_todos(pacote: Pacote) -> pd.DataFrame:
     return cache["lotes"]
 
 
+def _configurar_estado_vapor(diario: pd.DataFrame, r: ResumoPeriodo) -> None:
+    """Resolve o estado do vapor sem preencher dados explicitamente ausentes.
+
+    Compatibilidade: se nenhuma linha declara `estado_vapor`, mantém a hipótese histórica
+    de vapor saturado seco (x = 1), marcada como `assumido`. Se o cliente começa a declarar
+    o estado, todas as leituras relevantes do totalizador no período precisam ser coerentes.
+    """
+    linhas = diario[
+        (diario["instante_observado"] >= r.inicio)
+        & (diario["instante_observado"] <= r.fim)
+        & (diario["regime"].fillna("estavel") != "parada")
+        & diario["totalizador_vapor_t"].notna()
+    ].sort_values("instante_observado")
+    if linhas.empty:
+        return
+    estados = linhas["estado_vapor"].dropna().astype(str).str.strip()
+    if estados.empty:
+        r.estado_vapor = "saturado_seco"
+        r.estado_vapor_origem = "assumido"
+        r.titulo_vapor = 1.0
+        return
+    if linhas["estado_vapor"].isna().any():
+        r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+            "O estado do vapor foi informado só em parte das leituras do totalizador.",
+            ["estado do vapor em todas as leituras usadas no balanço"],
+        )
+        return
+    unicos = tuple(dict.fromkeys(estados))
+    if len(unicos) != 1:
+        r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+            f"O período mistura estados de vapor ({', '.join(unicos)}). "
+            "A EULER não faz média entre estados termodinâmicos diferentes.",
+            ["separar o período por estado do vapor ou fornecer uma fronteira homogênea"],
+        )
+        return
+    estado = unicos[0]
+    r.estado_vapor = estado
+    r.estado_vapor_origem = "medido"
+    if estado == "superaquecido":
+        if linhas["t_vapor_c"].isna().any():
+            r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                "Vapor superaquecido sem temperatura em todas as leituras usadas no balanço.",
+                ["temperatura do vapor nas leituras do totalizador"],
+            )
+        r.titulo_vapor = None
+    elif estado == "umido":
+        if linhas["titulo_vapor"].isna().any():
+            r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                "Vapor úmido sem título em todas as leituras usadas no balanço.",
+                ["título do vapor nas leituras do totalizador"],
+            )
+        elif not linhas["titulo_vapor"].between(0, 1).all():
+            r.bloqueios["estado_vapor"] = AnaliseBloqueada(
+                "Há título do vapor fora da faixa física de 0 a 1.",
+                ["título do vapor entre 0 e 1"],
+            )
+        else:
+            r.titulo_vapor = float(linhas["titulo_vapor"].mean())
+    else:
+        r.titulo_vapor = 1.0
+
+
 def _vapor(pacote: Pacote, diario: pd.DataFrame, r: ResumoPeriodo) -> None:
     """Vapor produzido no período pelo totalizador (só diferenças, nunca preenchido)."""
     falta = ["leituras do totalizador de vapor no início e no fim do período, sem reinício"]
@@ -401,8 +463,21 @@ def _energia_util_intervalos(tot: pd.DataFrame, r: ResumoPeriodo, escala: float)
             continue
         if p.empty or t.empty:
             continue
+        kwargs = {}
+        if r.estado_vapor == "superaquecido":
+            tv = pd.Series([ant.t_vapor_c, atual.t_vapor_c]).dropna()
+            if len(tv) != 2:
+                continue
+            kwargs["t_vapor_c"] = float(tv.mean())
+        elif r.estado_vapor == "umido":
+            x = pd.Series([ant.titulo_vapor, atual.titulo_vapor]).dropna()
+            if len(x) != 2:
+                continue
+            kwargs["titulo"] = float(x.mean())
         try:
-            soma += massa * delta_h_mj_kg(float(p.mean()), "saturado_seco", float(t.mean()))
+            soma += massa * delta_h_mj_kg(
+                float(p.mean()), r.estado_vapor, float(t.mean()), **kwargs
+            )
         except AnaliseBloqueada:
             continue
         cobertos += 1
@@ -826,9 +901,16 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         no_periodo = diario[
             (diario["instante_observado"] >= inicio) & (diario["instante_observado"] < fim)
         ]
+        regimes = [str(x) for x in no_periodo["regime"].dropna()]
+        if no_periodo["regime"].isna().any():
+            regimes.append("nao_informado")
+        r.regimes_presentes = tuple(dict.fromkeys(regimes))
+        r.apto_baseline_carga = bool(r.regimes_presentes) and set(r.regimes_presentes) == {"estavel"}
+
         operando = no_periodo[no_periodo["regime"].fillna("estavel") != "parada"]
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
         r.n_leituras_diario = len(operando)
+        _configurar_estado_vapor(diario, r)
 
         # Temperatura e O₂ só podem alimentar o caminho indireto quando pertencem a uma
         # mesma fronteira física. Misturar, por exemplo, saída da caldeira e pós-economizador
@@ -884,6 +966,8 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
             r.purgas_n = float(no_periodo["purgas_n"].sum())
         if no_periodo["purgas_s"].notna().any():
             r.purgas_s = float(no_periodo["purgas_s"].sum())
+        if no_periodo["massa_purga_kg"].notna().any():
+            r.massa_purga_kg = float(no_periodo["massa_purga_kg"].sum())
         _vapor(pacote, diario, r)
     _combustivel(pacote, r)
     _mistura(pacote, r)
