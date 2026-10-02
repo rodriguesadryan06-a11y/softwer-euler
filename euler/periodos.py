@@ -189,6 +189,7 @@ class ResumoPeriodo:
     n_leituras_diario: int = 0
     cobertura_diario: float | None = None
     ponto_gases_id: str | None = None
+    instrumento_o2_id: str | None = None
     vapor_t: Grandeza | None = None
     energia_util_intervalos_gj: float | None = None
     combustivel_kg: Grandeza | None = None
@@ -836,13 +837,25 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
             est = estatistica_diaria(operando[coluna], operando["instante_observado"], unidade)
             if est is not None:
                 r.leituras[coluna] = est
-        id_o2 = operando["instrumento_o2_id"].dropna()
+        id_o2 = operando.loc[operando["o2_seco_pct"].notna(), "instrumento_o2_id"]
+        id_o2 = tuple(dict.fromkeys(str(x).strip() for x in id_o2.dropna() if str(x).strip()))
+        if len(id_o2) == 1:
+            r.instrumento_o2_id = id_o2[0]
+        elif len(id_o2) > 1:
+            r.bloqueios["instrumento_o2"] = AnaliseBloqueada(
+                "Há leituras de O₂ de mais de um analisador no mesmo período "
+                f"({', '.join(id_o2)}). A EULER não atribui a média à incerteza de um único instrumento.",
+                [
+                    "separar as leituras por analisador de O₂ ou confirmar qual instrumento "
+                    "representa o período"
+                ],
+            )
         for coluna in r.leituras:
             g = grandeza_leitura(
                 pacote,
                 r,
                 coluna,
-                id_o2.mode().iloc[0] if coluna == "o2_seco_pct" and len(id_o2) else None,
+                r.instrumento_o2_id if coluna == "o2_seco_pct" else None,
             )
             if g is not None:
                 r.leituras_grandeza[coluna] = g
