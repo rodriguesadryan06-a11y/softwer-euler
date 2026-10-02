@@ -63,7 +63,10 @@ INSTRUMENTOS = {
     "t_gases_c": (("gases",), ("termopar", "temperatura dos gases")),
     "o2_seco_pct": (("o2",), ("o₂", "o2", "oxigênio")),
     "p_vapor_bar_abs": (("manometro", "pressao"), ("manômetro", "manometro", "pressão")),
-    "p_purga_bar_abs": (("pressao_purga", "purga_pressao"), ("pressão da purga", "pressao da purga")),
+    "p_purga_bar_abs": (
+        ("pressao_purga", "purga_pressao"),
+        ("pressão da purga", "pressao da purga"),
+    ),
     "t_vapor_c": (("temperatura_vapor", "vapor_temp"), ("temperatura do vapor",)),
     "titulo_vapor": (("titulo_vapor", "qualidade_vapor"), ("título do vapor", "titulo do vapor")),
     "t_agua_alim_c": (("agua",), ("água de alimentação", "agua de alimentacao")),
@@ -924,7 +927,9 @@ def resumir_periodo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp) -> 
         if no_periodo["regime"].isna().any():
             regimes.append("nao_informado")
         r.regimes_presentes = tuple(dict.fromkeys(regimes))
-        r.apto_baseline_carga = bool(r.regimes_presentes) and set(r.regimes_presentes) == {"estavel"}
+        r.apto_baseline_carga = bool(r.regimes_presentes) and set(r.regimes_presentes) == {
+            "estavel"
+        }
 
         operando = no_periodo[no_periodo["regime"].fillna("estavel") != "parada"]
         operando = operando.drop_duplicates(subset=[c for c in operando.columns if c != "linha"])
