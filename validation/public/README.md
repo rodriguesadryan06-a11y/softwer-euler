@@ -23,6 +23,12 @@ Ele **não valida a eficiência global da EULER**. Esse dataset não entrega mas
 
 Há ainda uma limitação real descoberta pelo dataset: o O₂ é descrito na **entrada do economizador**, enquanto a temperatura de gases usada no recorte vem da **saída do economizador**. A EULER não deve fingir que essas duas medições pertencem ao mesmo estado termodinâmico do gás. Por isso, este fixture não é usado para calcular perda de chaminé.
 
+## Benchmark externo de propriedades: Bureau of Energy Efficiency
+
+Também foi materializado `bee_direct_method_benchmark.json`, baseado no exemplo medido publicado pelo Bureau of Energy Efficiency da Índia. Usamos esse caso **somente** para conferir as entalpias de vapor e água calculadas pela IF97 contra os valores publicados.
+
+A eficiência de 72,5% publicada **não é usada como golden da EULER**, porque aquele exemplo está em base GCV/HHV enquanto o caminho direto atual da EULER foi definido em PCI/LHV. Misturar as bases produziria uma validação falsa.
+
 ## Segundo candidato real: Wonji Sugar Factory
 
 Também foi localizado o dataset público **31.5 MW Wonji sugar factory steam drum data** (Mendeley Data, DOI 10.17632/g5t4yxymy7.1, CC BY 4.0), medido numa caldeira de biomassa e descrito como 4 entradas / 3 saídas. Ele é especialmente interessante por ser biomassa, mas não foi materializado aqui sem obter e conferir o arquivo bruto e suas unidades. A ausência de um arquivo local é deliberada: **não inventamos colunas nem unidades para fazer o teste caber.**
