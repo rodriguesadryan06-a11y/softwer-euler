@@ -23,6 +23,7 @@ from typing import Literal
 
 import pandas as pd
 
+from euler.baseline import BaselineCarga, ObservacaoCarga, ajustar_baseline_carga, residual_normalizado
 from euler.deteccao import Comparacao, comparar
 from euler.direto import balanco_direto
 from euler.formato import num
@@ -71,12 +72,68 @@ class Saude:
     """Índices (primeiro, último) dos períodos a investigar, quando mudou."""
     comparacao_mudanca: Comparacao | None = None
     eventos: list[dict] = field(default_factory=list)
+    baseline_carga: BaselineCarga | None = None
+    residuos_carga: dict[int, float | None] = field(default_factory=dict)
 
 
 def _consumo(pacote: Pacote, inicio: pd.Timestamp, fim: pd.Timestamp):
     b = balanco_direto(resumir_periodo(pacote, inicio, fim))
     motivo = None if b.consumo_t_por_t else (b.bloqueios[0].motivo if b.bloqueios else None)
     return b.consumo_t_por_t, motivo
+
+
+def _baseline_carga(
+    pacote: Pacote, datas: list[tuple[pd.Timestamp, pd.Timestamp]], fim_referencia: int
+) -> tuple[BaselineCarga | None, dict[int, float | None]]:
+    """Baseline secundário condicionado à carga; nunca substitui a comparação principal.
+
+    A referência usa somente períodos explicitamente quase estacionários. O modelo não
+    extrapola: períodos fora da faixa de carga ficam sem residual.
+    """
+    obs: list[ObservacaoCarga] = []
+    resumos = {}
+    for i, (inicio, fim) in enumerate(datas):
+        r = resumir_periodo(pacote, inicio, fim)
+        resumos[i] = r
+        if i > fim_referencia or not r.apto_baseline_carga:
+            continue
+        if r.vapor_t is None or r.combustivel_kg is None or r.horas <= 0:
+            continue
+        obs.append(
+            ObservacaoCarga(
+                carga_t_h=r.vapor_t.valor / r.horas,
+                combustivel_t_h=(r.combustivel_kg.valor / 1000) / r.horas,
+            )
+        )
+    try:
+        modelo = ajustar_baseline_carga(obs)
+    except Exception as erro:
+        from euler.tipos import AnaliseBloqueada
+
+        if isinstance(erro, AnaliseBloqueada):
+            return None, {}
+        raise
+
+    residuos: dict[int, float | None] = {}
+    for i, r in resumos.items():
+        if i <= fim_referencia or not r.apto_baseline_carga:
+            continue
+        if r.vapor_t is None or r.combustivel_kg is None or r.horas <= 0:
+            continue
+        carga = r.vapor_t.valor / r.horas
+        combustivel = (r.combustivel_kg.valor / 1000) / r.horas
+        try:
+            residuos[i] = residual_normalizado(
+                modelo, carga_t_h=carga, combustivel_t_h=combustivel
+            )
+        except Exception as erro:
+            from euler.tipos import AnaliseBloqueada
+
+            if isinstance(erro, AnaliseBloqueada):
+                residuos[i] = None
+            else:
+                raise
+    return modelo, residuos
 
 
 def _estado(c: Comparacao) -> Estado:
@@ -157,6 +214,9 @@ def avaliar_saude(pacote: Pacote) -> Saude:
         estado = _estado(c) if c.disponivel else "nao_da_para_dizer"
         periodos.append(Periodo(i, inicio, fim, consumo, motivo, estado, c))
 
+    baseline_carga, residuos_carga = _baseline_carga(pacote, datas, ref[1])
+    extras = {"baseline_carga": baseline_carga, "residuos_carga": residuos_carga}
+
     depois = periodos[ref[1] + 1 :]
     mudanca = _sequencia(depois)
     texto_ref = _datas(datas, *ref)
@@ -165,7 +225,7 @@ def avaliar_saude(pacote: Pacote) -> Saude:
             periodos, ref, None, "nao_da_para_dizer",
             "Não dá para dizer se o consumo mudou: o consumo por tonelada de vapor da referência "
             f"({texto_ref}) não pôde ser calculado. {motivo_ref or ''}".strip(),
-            eventos=eventos,
+            eventos=eventos, **extras,
         )  # fmt: skip
     if mudanca is not None:
         c_mud, _ = _consumo(pacote, datas[mudanca[0]][0], datas[mudanca[1]][1])
@@ -178,13 +238,15 @@ def avaliar_saude(pacote: Pacote) -> Saude:
             + f" de {_datas(datas, *mudanca)} em relação à referência ({texto_ref}), "
             "além da incerteza das medições."
         )
-        return Saude(periodos, ref, c_ref, "mudou", frase, mudanca, cmp, eventos)
+        return Saude(
+            periodos, ref, c_ref, "mudou", frase, mudanca, cmp, eventos, **extras
+        )
     if depois and all(p.estado == "estavel" for p in depois):
         return Saude(
             periodos, ref, c_ref, "estavel",
             "O consumo por tonelada de vapor ficou estável: nenhum período depois da referência "
             f"({texto_ref}) se afastou dela além da incerteza das medições.",
-            eventos=eventos,
+            eventos=eventos, **extras,
         )  # fmt: skip
     sem = [p for p in depois if p.estado == "nao_da_para_dizer"]
     if any(p.consumo is None for p in sem):
@@ -197,5 +259,5 @@ def avaliar_saude(pacote: Pacote) -> Saude:
     return Saude(
         periodos, ref, c_ref, "nao_da_para_dizer",
         f"Não dá para dizer se o consumo mudou depois da referência ({texto_ref}): {motivo}.",
-        eventos=eventos,
+        eventos=eventos, **extras,
     )  # fmt: skip
