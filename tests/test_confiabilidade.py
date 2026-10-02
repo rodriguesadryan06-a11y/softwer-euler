@@ -337,6 +337,23 @@ def test_a6_um_unico_ponto_de_gases_preserva_o_calculo():
     assert indireto_periodo(r, p_gases=1.01325).resultado is not None
 
 
+def test_a6_dois_analisadores_de_o2_no_mesmo_periodo_nao_viram_um_so():
+    """A média de O₂ não pode herdar a incerteza de apenas um de dois analisadores."""
+    pacote, lim = montar([Periodo(G01, dias=3)])
+    diario = pacote.importacoes["diario"].dados
+    ini, fim = lim[0]
+    sel = (diario["instante_observado"] >= ini) & (diario["instante_observado"] < fim)
+    idx = diario.index[sel]
+    metade = len(idx) // 2
+    diario.loc[idx[:metade], "instrumento_o2_id"] = "ANALIS-A"
+    diario.loc[idx[metade:], "instrumento_o2_id"] = "ANALIS-B"
+
+    r = resumir_periodo(pacote, ini, fim)
+    assert "instrumento_o2" in r.bloqueios
+    i = indireto_periodo(r, p_gases=1.01325)
+    assert i.resultado is None and "analisador" in i.bloqueio.motivo
+
+
 def test_a6_o2_nao_e_rotulado_como_causa_unica_de_excesso_de_ar():
     pacote, lim = montar([Periodo(G01), Periodo(G01, o2_seco_pct=10.5)])
     j = investigar(pacote, lim[0], lim[1])
