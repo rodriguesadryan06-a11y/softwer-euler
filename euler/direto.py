@@ -231,15 +231,16 @@ def balanco_direto(r: ResumoPeriodo) -> BalancoDireto:
                     t_vapor_c=tv,
                     titulo=titulo,
                 )
-                nota_estado = {
-                    "saturado_seco": (
+                if estado == "saturado_seco":
+                    nota_estado = (
                         "vapor saturado seco; x = 1 assumido"
                         if r.estado_vapor_origem == "assumido"
                         else "vapor saturado seco registrado"
-                    ),
-                    "superaquecido": f"vapor a {tv:.1f} °C",
-                    "umido": f"vapor úmido com x = {titulo:.4f}",
-                }[estado]
+                    )
+                elif estado == "superaquecido":
+                    nota_estado = f"vapor a {tv:.1f} °C"
+                else:
+                    nota_estado = f"vapor úmido com x = {titulo:.4f}"
                 b.delta_h_mj_kg = _grandeza(
                     dh,
                     "MJ/kg",
