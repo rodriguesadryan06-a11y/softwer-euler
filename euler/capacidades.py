@@ -162,6 +162,19 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
             "Sem temperatura da água de alimentação.",
             "Registrar a temperatura da água de alimentação.",
         )
+        estados = set(diario["estado_vapor"].dropna().astype(str)) if "estado_vapor" in diario else set()
+        if "superaquecido" in estados:
+            v.exigir(
+                _tem(diario, "t_vapor_c"),
+                "Há vapor superaquecido registrado sem temperatura do vapor.",
+                "Registrar a temperatura do vapor nas leituras superaquecidas.",
+            )
+        if "umido" in estados:
+            v.exigir(
+                _tem(diario, "titulo_vapor_frac"),
+                "Há vapor úmido registrado sem título do vapor.",
+                "Registrar o título do vapor nas leituras de vapor úmido.",
+            )
     caps.append(
         v.capacidade(
             "energia_vapor",
@@ -274,6 +287,20 @@ def avaliar(pacote: Pacote) -> list[Capacidade]:
         ("balanca", "da balança dos recebimentos", "kg"),
         ("p_vapor_bar_abs", "do manômetro do vapor", "bar"),
         ("t_agua_alim_c", "do termômetro da água de alimentação", "°C"),
+        *(
+            [("t_vapor_c", "do termômetro do vapor", "°C")]
+            if diario is not None
+            and "estado_vapor" in diario
+            and (diario["estado_vapor"] == "superaquecido").any()
+            else []
+        ),
+        *(
+            [("titulo_vapor_frac", "da medição do título do vapor", "em fração ou %")]
+            if diario is not None
+            and "estado_vapor" in diario
+            and (diario["estado_vapor"] == "umido").any()
+            else []
+        ),
         ("umidade", "do método de umidade (estufa)", "em pontos de %"),
         ("pci_seco", "da análise de PCI seco (calorímetro)", "em % da leitura"),
     ):
