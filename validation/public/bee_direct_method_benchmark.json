@@ -1,0 +1,32 @@
+{
+  "id": "bee_coal_boiler_direct_method",
+  "source": {
+    "title": "Energy Performance Assessment of Boilers",
+    "publisher": "Bureau of Energy Efficiency, Government of India",
+    "url": "https://beeindia.gov.in/sites/default/files/4Ch1.pdf",
+    "basis": "published measured direct-method example"
+  },
+  "published": {
+    "boiler_type": "coal fired",
+    "steam_flow_t_h": 8,
+    "steam_pressure_kgf_cm2_g": 10,
+    "steam_temperature_c": 180,
+    "steam_state_as_published": "dry and saturated",
+    "steam_enthalpy_kcal_kg": 665,
+    "feedwater_temperature_c": 85,
+    "feedwater_enthalpy_kcal_kg": 85,
+    "coal_flow_t_h": 1.6,
+    "gcv_kcal_kg": 4000,
+    "reported_efficiency_pct_gcv": 72.5
+  },
+  "euler_validation_boundary": {
+    "compare": [
+      "steam enthalpy",
+      "feedwater enthalpy"
+    ],
+    "do_not_compare": [
+      "reported efficiency"
+    ],
+    "reason": "The published example is on GCV/HHV basis; the current EULER direct path is explicitly PCI/LHV-based. Treating GCV as PCI would be a basis error."
+  }
+}
