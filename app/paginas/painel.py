@@ -12,7 +12,9 @@ from acompanhamento_ui import brl, periodo, planta_e_equipamento
 from blocos.linha_do_tempo import renderizar as renderizar_linha_do_tempo
 from blocos.painel_principal import cinco_respostas, dia_a_dia_bloco, topo
 from blocos.percurso import renderizar as renderizar_percurso
+from blocos.rotina_mensal import historico, registro_do_mes, rotina
 from componentes import cabecalho, md
+from visao_mensal import fechamentos_do_mes, mes_em_foco
 
 from euler.dia_a_dia import dia_a_dia
 from euler.fechamento import (
@@ -23,7 +25,7 @@ from euler.fechamento import (
     versao_codigo,
 )
 from euler.formato import num
-from euler.mensal import chave_do_mes, meses, resumo_do_mes
+from euler.mensal import meses, resumo_do_mes
 from euler.painel import CRITERIOS, fila_de_atencao, painel
 
 CORES = {
@@ -138,17 +140,6 @@ def _dados(raiz: str, planta_id: str, equip_id: str, marco: tuple) -> dict:
         a.fechar()
 
 
-def _mes_em_foco(planos: list[dict]) -> dict | None:
-    """O mês que pede atenção (revisar ou fechar); senão o último fechado; senão o último."""
-    return next(
-        (x for x in planos if x["estado"] in ("revisar", "pronto")),
-        next(
-            (x for x in reversed(planos) if x["estado"] == "fechado"),
-            planos[-1] if planos else None,
-        ),
-    )
-
-
 def detalhes(a, eq, p: dict, fila: list) -> None:
     """O que antes ocupava a tela: agora sob demanda (D114)."""
     with st.expander("Onde estou no percurso da planta (5 passos)"):
@@ -232,30 +223,48 @@ def mostrar() -> None:
         p = painel(a, eq["id"])
         fila = fila_de_atencao(a, eq["id"])
         vigentes = fechamentos_vigentes(a, eq["id"])
-        marco = (a.revisao, tuple(x["id"] for x in vigentes), versao_codigo())
+        marco = (
+            a.revisao,
+            tuple(x["id"] for x in vigentes),
+            versao_codigo(),
+            str(pd.Timestamp.now(tz="America/Sao_Paulo").date()),
+        )
         dados = _dados(str(repo.raiz), planta["id"], eq["id"], marco)
-        plano = _mes_em_foco(dados["meses"])
+        plano = mes_em_foco(dados["meses"])
+        if plano:
+            opcoes = {x["mes"]: x for x in reversed(dados["meses"])}
+            chave = st.selectbox(
+                "Mês acompanhado",
+                list(opcoes),
+                index=list(opcoes).index(plano["mes"]),
+                format_func=lambda c: opcoes[c]["rotulo"].capitalize(),
+                key=f"painel_mes_{planta['id']}_{eq['id']}",
+            )
+            plano = opcoes[chave]
         topo(planta, eq, p["cobertura"], plano)
+        if plano:
+            rotina(plano)
         dia_a_dia_bloco(dados["dia"])
         prev = None
-        if vigentes and periodos_pendentes(a, eq["id"]):
+        if plano and plano["estado"] == "pronto" and vigentes and periodos_pendentes(a, eq["id"]):
             prev = _previa(str(repo.raiz), planta["id"], eq["id"], marco)
+            if prev and not any(
+                pd.Timestamp(x["inicio"]) == pd.Timestamp(prev.get("inicio"))
+                for x in plano["trechos"]
+            ):
+                prev = None
         if prev:
             aviso_dados_novos(prev)
-        com_conta = [
-            x for x in vigentes if x["resultado"]["nucleo"]["explicacao_conta"].get("disponivel")
-        ]
-        f = (com_conta or vigentes or [None])[-1]
-        resumo = (
-            resumo_do_mes(a, eq["id"], f["resultado"].get("mes") or chave_do_mes(f["fim"]))
-            if f is not None
-            else None
-        )
-        if resumo and len(resumo["trechos"]) < 2:
-            resumo = None  # um trecho só: as respostas do próprio fechamento bastam
+        do_mes = fechamentos_do_mes(vigentes, plano["mes"]) if plano else []
+        f = (do_mes or [None])[-1]
+        resumo = resumo_do_mes(a, eq["id"], plano["mes"], plano=plano) if plano else None
+        if resumo:
+            registro_do_mes(resumo)
         cinco_respostas(f, resumo, a.pacote(eq["id"]) if f is not None else None, fila, p)
+        historico(a, eq["id"], dados["meses"])
         if vigentes:
-            renderizar_linha_do_tempo(a, eq["id"])
+            with st.expander("Ver evolução detalhada por período"):
+                renderizar_linha_do_tempo(a, eq["id"])
         else:
             st.markdown("### Histórico")
             st.caption("O histórico começa no primeiro fechamento.")

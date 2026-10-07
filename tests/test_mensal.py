@@ -14,10 +14,19 @@ from euler.fechamento import (
     criar_referencia,
     fechamentos,
     fechamentos_vigentes,
+    produzir_fechamento,
     revisoes,
 )
 from euler.linha_do_tempo import linha_do_tempo
-from euler.mensal import chave_do_mes, fechar_mes, meses, plano_do_mes, previa_do_mes, revisar_mes
+from euler.mensal import (
+    chave_do_mes,
+    fechar_mes,
+    meses,
+    plano_do_mes,
+    previa_do_mes,
+    resumo_do_mes,
+    revisar_mes,
+)
 from euler.periodos import periodos_entre_estoques
 from euler.persistencia import Repositorio
 
@@ -86,6 +95,23 @@ def test_mes_a_mes_com_previa_aprovacao_e_revisao(tmp_path):
         assert [p["situacao"] for p in prev["previas"]] == [f["resultado"]["situacao"] for f in fs]
         assert fs[1]["resultado"]["situacao"] is None  # a lacuna fica registrada, sem conta
         assert plano_do_mes(a, EQ, "2026-09", OUTUBRO)["estado"] == "fechado"
+        resumo = resumo_do_mes(a, EQ, "2026-09", OUTUBRO)
+        assert resumo["estado"] == "fechado"
+        assert resumo["completo"] is False  # aprovado não quer dizer sem lacuna
+        assert resumo["trechos_com_valor"] == 2
+        assert resumo["periodos_pendentes"] == 0
+        assert resumo["cobertura"]["dias_com_conta"] == pytest.approx(20.3125)
+        assert resumo["cobertura"]["dias_com_valor"] == pytest.approx(20.3125)
+        assert resumo["cobertura"]["dias_do_mes"] == 30
+        for t, f in zip(resumo["trechos"], fs, strict=True):
+            assert t["autor"] == "Teste"
+            assert t["criado_em"] == f["criado_em"]
+            assert t["revisao_dados"] == f["revisao_dados"]
+            assert t["referencia_versao"] == 1
+            assert t["revisa"] is None
+        assert resumo["lacunas"][0]["motivo"]
+        assert resumo["motivos"]
+        valor_original = resumo["consumido_brl"]
         with pytest.raises(ErroArmazem, match="fechados"):
             fechar_mes(a, EQ, "2026-09", "Teste", OUTUBRO)
 
@@ -97,6 +123,10 @@ def test_mes_a_mes_com_previa_aprovacao_e_revisao(tmp_path):
         plano = plano_do_mes(a, EQ, "2026-09", OUTUBRO)
         assert plano["estado"] == "revisar"
         assert plano["a_revisar"] == [fs[2]["id"]]  # só o trecho de 21/09 a 28/09
+        pendente = resumo_do_mes(a, EQ, "2026-09", OUTUBRO)
+        assert pendente["estado"] == "revisar"
+        assert pendente["a_revisar"] == [fs[2]["id"]]
+        assert pendente["consumido_brl"] == valor_original  # não recalcula em silêncio
         with pytest.raises(ErroArmazem, match="motivo"):
             revisar_mes(a, EQ, "2026-09", "Teste", " ", OUTUBRO)
         (novo,) = revisar_mes(a, EQ, "2026-09", "Teste", "Nota fiscal corrigida", OUTUBRO)
@@ -117,6 +147,15 @@ def test_mes_a_mes_com_previa_aprovacao_e_revisao(tmp_path):
         ]
         assert len(linha_do_tempo(a, EQ)["periodos"]) == 3
         assert plano_do_mes(a, EQ, "2026-09", OUTUBRO)["estado"] == "fechado"
+        revisado = resumo_do_mes(a, EQ, "2026-09", OUTUBRO)
+        assert revisado["trechos"][-1]["revisa"] == fs[2]["id"]
+        assert revisado["trechos"][-1]["motivo_revisao"] == "Nota fiscal corrigida"
+        assert revisado["trechos"][-1]["criado_em"] == novo["criado_em"]
+        assert revisado["fechamentos"] == [fs[0]["id"], fs[1]["id"], novo["id"]]
+        assert revisado["consumido_brl"] == sum(
+            f["resultado"]["nucleo"]["explicacao_conta"]["consumido"]["custo_brl"]
+            for f in (fs[0], novo)
+        )
     finally:
         a.fechar()
 
@@ -130,5 +169,50 @@ def test_meses_sao_fechados_na_ordem(tmp_path):
         assert setembro["estado"] == "aguarda_anterior"
         with pytest.raises(ErroArmazem, match="na ordem"):
             fechar_mes(a, EQ, "2026-09", "Teste", OUTUBRO)
+    finally:
+        a.fechar()
+
+
+def test_resumo_sem_preco_preserva_ausencia_e_explica_o_motivo(tmp_path):
+    a, _ = _planta(tmp_path)
+    try:
+        a.configurar(EQ, {"politica_custo": "tabela_de_precos"}, autor="Teste")
+        fechar_mes(a, EQ, "2026-09", "Teste", OUTUBRO)
+        resumo = resumo_do_mes(a, EQ, "2026-09", OUTUBRO)
+        assert resumo["consumido_brl"] is None
+        assert resumo["esperado_brl"] is None
+        assert resumo["diferenca_brl"] is None
+        assert resumo["combustivel_t"] > 0
+        assert resumo["trechos_com_valor"] == 0
+        assert resumo["completo"] is False
+        assert resumo["cobertura"]["dias_com_valor"] == 0  # cobertura, não custo
+        assert resumo["cobertura"]["dias_com_conta"] > 0
+        for trecho in resumo["trechos"]:
+            assert trecho["valoracao_disponivel"] is False
+            if trecho["conta_disponivel"]:
+                assert "Nenhum preço da tabela" in trecho["motivo"]
+        assert any("Nenhum preço da tabela" in m for m in resumo["motivos"])
+    finally:
+        a.fechar()
+
+
+def test_resumo_de_mes_parcial_nao_se_apresenta_como_completo(tmp_path):
+    a, _ = _planta(tmp_path)
+    try:
+        assert resumo_do_mes(a, EQ, "2026-09", OUTUBRO) is None
+        periodos = periodos_entre_estoques(a.pacote(EQ))
+        f = produzir_fechamento(a, EQ, "Operador", periodos[4][0], periodos[5][1], mes="2026-09")
+        resumo = resumo_do_mes(a, EQ, "2026-09", OUTUBRO)
+        assert resumo["estado"] == "pronto"
+        assert resumo["completo"] is False
+        assert resumo["periodos_pendentes"] == 2
+        assert resumo["trechos_com_valor"] == 1
+        assert resumo["cobertura"]["dias_com_conta"] == pytest.approx(13.3125)
+        assert resumo["cobertura"]["dias_com_valor"] == pytest.approx(13.3125)
+        assert (
+            resumo["consumido_brl"]
+            == (f["resultado"]["nucleo"]["explicacao_conta"]["consumido"]["custo_brl"])
+        )
+        assert any("sem aprovação" in m for m in resumo["motivos"])
     finally:
         a.fechar()
