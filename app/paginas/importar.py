@@ -43,7 +43,8 @@ st.page_link(
 with st.expander("Como preparar os dados de uma empresa"):
     st.markdown(
         "1. **Envie sua própria planilha** e confirme a correspondência das colunas e unidades, "
-        "ou baixe o modelo pronto. O cabeçalho deve ficar na primeira linha.\n"
+        "ou baixe o modelo pronto. Títulos acima do cabeçalho, Data e Hora em colunas "
+        "separadas e unidades como kgf/cm², °F ou t/h são reconhecidos; confira as sugestões.\n"
         "2. **Apague as linhas sintéticas de exemplo** de todas as abas. Preencha só os registros reais disponíveis.\n"
         "3. Use uma **caldeira por análise**, com identificação, datas e horários coerentes. "
         "Na coluna de origem dos registros, indique que os dados são reais. "

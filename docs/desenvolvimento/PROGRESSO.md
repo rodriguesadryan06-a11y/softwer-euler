@@ -422,3 +422,15 @@ Pedido do Adryan: continuar as cinco melhorias propostas pelo Codex, começando 
 - Testes: `tests/test_navegacao_simples.py` (4): todas as rotas registradas uma única vez, cada tela numa seção, menu com até cinco entradas e, em cada seção, as abas das telas irmãs com a seção destacada.
 - Guias (`ENTENDA_A_EULER.md`, `PASSEIO_PELAS_TELAS.md`) e a prévia online atualizados para o menu novo; prévia republicada no mesmo endereço. Prints: `prints/15_menu_compacto_painel.png` e `prints/16_menu_compacto_celular.png`.
 
+## Planilha de fábrica como ela chega — 07/10/2026
+
+- **D106.** A importação guiada (Análise › Arquivo avulso e Minha planta › Dados) agora lê uma planilha de fábrica sem retrabalho:
+  - **sugere as colunas pelo vocabulário de fábrica** (`app/vocabulario_fabrica.py`), com o motivo de cada sugestão; cabeçalhos ambíguos continuam sem sugestão, e O₂ sem base, pressão absoluta, peso bruto e preço por tonelada nunca são associados (aparece uma nota explicando);
+  - **lê a unidade escrita no cabeçalho** e já marca a conversão quando ela é exata; novas conversões: kgf/cm², psi e MPa → bar; °F → °C; t/dia → t/h;
+  - **acha o cabeçalho abaixo de títulos** (linha ajustável) e mantém o número da linha do arquivo original;
+  - **junta Data + Hora** de colunas separadas; sem data ou sem hora, a hora fica ausente;
+  - mostra **"O que a EULER entendeu"**: o que entra e de onde vem, o que fica de fora (guardado no original) e as colunas usadas pelas análises que não vieram.
+- O leitor, o contrato, o motor e o armazém não mudaram. O perfil por fonte continua guardando o mapeamento; as unidades continuam conferidas a cada envio.
+- Testes: `tests/test_planilha_real.py` (20) com uma planilha de fábrica sintética (título em cima, Data e Hora separadas, kgf/cm², peso em toneladas, valor total) e um teste de tela que importa essa planilha pela interface. Os testes antigos da importação guiada continuam passando sem mudança.
+- Falta: revisar o vocabulário com a primeira planilha real autorizada.
+

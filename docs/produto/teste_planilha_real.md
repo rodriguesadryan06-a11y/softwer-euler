@@ -61,9 +61,11 @@ Preencher logo depois, sem dados do cliente (só contagens e descrições):
 
 ## Limites atuais que vale conferir no teste
 
-Da importação guiada (`docs/desenvolvimento/importacao_financeiro_2026-10-06.md`): cabeçalho na
-primeira linha; uma fonte por tabela em cada envio; CSV ou `.xlsx`; não lê PDF de notas nem
-planilhas de apresentação com células mescladas; o mapeamento exige revisão humana. Se a planilha
+Da importação guiada (`docs/desenvolvimento/importacao_financeiro_2026-10-06.md` e D106): uma
+fonte por tabela em cada envio; CSV ou `.xlsx`; não lê PDF de notas nem planilhas de apresentação
+com células mescladas; o mapeamento exige revisão humana. Já reconhece título acima do cabeçalho,
+Data e Hora separadas, nomes comuns de fábrica e unidades como kgf/cm², psi, °F e t/h. Anotar quais
+colunas a EULER não sugeriu sozinha: é o que falta no vocabulário de fábrica. Se a planilha
 real esbarrar nesses limites, anotar exatamente como ela é, para virar tarefa.
 
 ## Depois do teste
