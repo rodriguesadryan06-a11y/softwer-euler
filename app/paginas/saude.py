@@ -36,7 +36,14 @@ def investigar(s) -> None:
         "comp": s.mudanca,
     }
     # os controles da Investigação usam esta escolha como valor inicial
-    for chave in ("periodo_ref", "periodo_comp"):
+    for chave in (
+        "periodo_ref",
+        "periodo_comp",
+        "periodo_ref_inicio",
+        "periodo_ref_fim",
+        "periodo_comp_inicio",
+        "periodo_comp_fim",
+    ):
         st.session_state.pop(chave, None)
     st.switch_page("paginas/investigacao.py")
 

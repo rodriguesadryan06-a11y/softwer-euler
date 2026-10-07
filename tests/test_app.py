@@ -12,6 +12,17 @@ APP = Path(__file__).resolve().parents[1] / "app"
 PAGINAS = sorted(p.name for p in (APP / "paginas").glob("*.py"))
 
 
+def escolher_periodo(at, tipo, intervalo):
+    """Interage com início/fim sem alterar as expectativas dos testes de análise."""
+    at.selectbox(key=f"periodo_{tipo}_inicio").set_value(intervalo[0]).run()
+    at.selectbox(key=f"periodo_{tipo}_fim").set_value(intervalo[1]).run()
+    return at
+
+
+def intervalo_escolhido(at, tipo):
+    return tuple(at.selectbox(key=f"periodo_{tipo}_{limite}").value for limite in ("inicio", "fim"))
+
+
 def abrir(pagina: str | None = None) -> AppTest:
     at = AppTest.from_file(str(APP / "main.py"), default_timeout=30).run()
     if pagina:
@@ -169,7 +180,7 @@ def test_investigacao_com_demo_mostra_o_que_falta_para_concluir():
 
 def test_investigacao_semana_sem_vapor_abstem():
     at = abrir_com_demo("investigacao.py")
-    at.select_slider[1].set_value((6, 6)).run()  # semana 7: medidor de vapor fora
+    escolher_periodo(at, "comp", (6, 6))  # semana 7: medidor de vapor fora
     assert not at.exception, at.exception
     assert any(w.value.startswith("Não dá para saber se o consumo") for w in at.warning)
 
@@ -215,7 +226,7 @@ def test_relatorio_avisa_quando_a_altitude_mudou_depois_da_investigacao():
 
 def test_relatorio_segue_os_periodos_escolhidos():
     at = abrir_com_demo("investigacao.py")
-    at.select_slider[1].set_value((6, 6)).run()  # semana 7
+    escolher_periodo(at, "comp", (6, 6))  # semana 7
     at.switch_page("paginas/relatorio.py").run()
     assert any("14/09/2026 07:30 a 21/09/2026 07:30" in c.value for c in at.caption)
 
@@ -271,13 +282,13 @@ def test_escolha_de_periodos_sobrevive_a_ida_e_volta_entre_telas():
     """Falha real: escolher a semana 7, ir ao Relatório e voltar trocava a comparação em
     silêncio de volta ao padrão (semanas 5–6), e o relatório mudava junto."""
     at = abrir_com_demo("investigacao.py")
-    at.select_slider[1].set_value((6, 6)).run()
+    escolher_periodo(at, "comp", (6, 6))
     at.switch_page("paginas/relatorio.py").run()
     at.switch_page("paginas/investigacao.py").run()
-    assert at.select_slider[1].value == (6, 6)
-    at.select_slider[1].set_value((7, 7)).run()  # mover de novo continua funcionando
-    at.select_slider[1].set_value((5, 7)).run()
-    assert at.select_slider[1].value == (5, 7)
+    assert intervalo_escolhido(at, "comp") == (6, 6)
+    escolher_periodo(at, "comp", (7, 7))  # mover de novo continua funcionando
+    escolher_periodo(at, "comp", (5, 7))
+    assert intervalo_escolhido(at, "comp") == (5, 7)
     at.switch_page("paginas/relatorio.py").run()
     legendas = [c.value for c in at.caption if "Comparação em uso" in c.value]
     assert legendas and "**07/09/2026 07:30 a 28/09/2026 07:30** (comparação)" in legendas[0]
@@ -285,12 +296,12 @@ def test_escolha_de_periodos_sobrevive_a_ida_e_volta_entre_telas():
 
 def test_escolha_de_periodos_volta_ao_padrao_com_dados_novos():
     at = abrir_com_demo("investigacao.py")
-    at.select_slider[1].set_value((6, 6)).run()
+    escolher_periodo(at, "comp", (6, 6))
     at.switch_page("paginas/importar.py").run()
     clicar(at, "Ato 2 · dados insuficientes")  # recarregar os dados também é "dados novos"
     at.number_input[0].set_value(900.0).run()
     at.switch_page("paginas/investigacao.py").run()
-    assert at.select_slider[1].value == (4, 5)
+    assert intervalo_escolhido(at, "comp") == (4, 5)
 
 
 def test_dados_e_limites_resume_os_avisos_de_qualidade():
@@ -329,7 +340,7 @@ def test_investigacao_resume_o_resultado_no_topo_sem_perder_os_quatro_estados():
 def test_investigacao_sem_vapor_nao_mostra_numero_de_consumo_nem_valor():
     """Semana 7 (sem medidor de vapor): o resumo não inventa consumo nem valor em jogo."""
     at = abrir_com_demo("investigacao.py")
-    at.select_slider[1].set_value((6, 6)).run()
+    escolher_periodo(at, "comp", (6, 6))
     metricas = {m.label: m.value for m in at.metric}
     assert metricas["Consumo por tonelada de vapor"] == "—"
     assert metricas["Valor em jogo"] == "não estimado"
@@ -389,14 +400,14 @@ def test_lancador_do_windows_abre_o_app():
 def test_saude_investigar_esta_mudanca_escolhe_os_periodos():
     """D65: o botão troca uma comparação já escolhida pelos períodos da mudança."""
     at = abrir_com_demo("investigacao.py")
-    at.select_slider(key="periodo_comp").set_value((7, 7)).run()
-    assert at.select_slider(key="periodo_comp").value == (7, 7)
+    escolher_periodo(at, "comp", (7, 7))
+    assert intervalo_escolhido(at, "comp") == (7, 7)
     at.switch_page("paginas/saude.py").run()
     assert not at.exception, at.exception
     at.button(key="investigar_mudanca").click().run()
     assert not at.exception, at.exception
-    assert at.select_slider(key="periodo_ref").value == (0, 3)
-    assert at.select_slider(key="periodo_comp").value == (4, 5)
+    assert intervalo_escolhido(at, "ref") == (0, 3)
+    assert intervalo_escolhido(at, "comp") == (4, 5)
 
 
 def test_saude_sem_periodos_suficientes_nao_tem_botao():

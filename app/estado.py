@@ -41,9 +41,15 @@ def definir_arquivos(arquivos: dict[str, bytes], rotulo: str, sinteticos: bool =
     st.session_state["dados_sinteticos"] = sinteticos
     esquecer_resultados()
     for chave in list(st.session_state):
-        if chave in ("periodos_escolhidos", "periodo_ref", "periodo_comp") or chave.startswith(
-            "fin_recuperacao_"
-        ):
+        if chave in (
+            "periodos_escolhidos",
+            "periodo_ref",
+            "periodo_comp",
+            "periodo_ref_inicio",
+            "periodo_ref_fim",
+            "periodo_comp_inicio",
+            "periodo_comp_fim",
+        ) or chave.startswith("fin_recuperacao_"):
             st.session_state.pop(chave, None)
 
 
@@ -64,6 +70,10 @@ def limpar_dados() -> None:
             "periodos_escolhidos",
             "periodo_ref",
             "periodo_comp",
+            "periodo_ref_inicio",
+            "periodo_ref_fim",
+            "periodo_comp_inicio",
+            "periodo_comp_fim",
             "saude_incerteza",
             "persistencia",
             "persistencia_erro",

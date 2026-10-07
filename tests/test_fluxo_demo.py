@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
+from test_app import intervalo_escolhido
 
 from euler.textos import RODAPE_SEGURANCA
 
@@ -35,8 +36,8 @@ def test_fluxo_completo_do_caso_de_demonstracao():
     at.switch_page("paginas/saude.py").run()
     at.button(key="investigar_mudanca").click().run()
     assert not at.exception, at.exception
-    assert at.select_slider(key="periodo_ref").value == (0, 3)
-    assert at.select_slider(key="periodo_comp").value == (4, 5)
+    assert intervalo_escolhido(at, "ref") == (0, 3)
+    assert intervalo_escolhido(at, "comp") == (4, 5)
     # auditoria A3: abstenção com o que cadastrar (antes: "Explicações compatíveis")
     assert any("Não dá para concluir" in w.value for w in at.warning)
     assert _rodape_ok(at)
