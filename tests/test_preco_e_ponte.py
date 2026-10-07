@@ -115,5 +115,5 @@ def test_resposta_da_ponte_com_conta_que_caiu():
     ]
     r = resposta_da_ponte(grupos, -5700.0)
     assert r.startswith("Em relação à referência, a conta caiu R$ 5.700")
-    assert "R$ 5.000 a menos pela produção de vapor (inclui a diferença de duração" in r
+    assert "R$ 5.000 a menos pela produção de vapor — inclui a diferença de duração" in r
     assert "R$ 300 a mais pelo consumo nas condições comparadas." in r

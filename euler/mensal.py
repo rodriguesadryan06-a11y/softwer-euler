@@ -379,7 +379,11 @@ def resumo_do_mes(a: Armazem, equip_id: str, chave: str) -> dict | None:
     conta; None se algum trecho com conta não tem preço) e completo (todos os trechos com
     conta e preço).
     """
-    fs = [f for f in fechamentos_vigentes(a, equip_id) if f["resultado"].get("mes") == chave]
+    fs = [
+        f
+        for f in fechamentos_vigentes(a, equip_id)
+        if (f["resultado"].get("mes") or chave_do_mes(f["fim"])) == chave
+    ]  # fechamentos de antes do fechamento mensal entram no mês em que terminam
     if not fs:
         return None
     trechos, com_conta = [], []

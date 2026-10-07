@@ -8,12 +8,22 @@ economia verificada não é contada duas vezes.
 import armazenamento as arm
 import pandas as pd
 import streamlit as st
-from acompanhamento_ui import brl, data, faixa_situacao, periodo, planta_e_equipamento
+from acompanhamento_ui import brl, periodo, planta_e_equipamento
+from blocos.linha_do_tempo import renderizar as renderizar_linha_do_tempo
+from blocos.painel_principal import cinco_respostas, dia_a_dia_bloco, topo
 from blocos.percurso import renderizar as renderizar_percurso
 from componentes import cabecalho, md
 
-from euler.fechamento import periodos_pendentes, previa_do_proximo_fechamento, versao_codigo
+from euler.dia_a_dia import dia_a_dia
+from euler.fechamento import (
+    fechamentos_vigentes,
+    periodos_pendentes,
+    previa_do_proximo_fechamento,
+    referencia_vigente,
+    versao_codigo,
+)
 from euler.formato import num
+from euler.mensal import chave_do_mes, meses, resumo_do_mes
 from euler.painel import CRITERIOS, fila_de_atencao, painel
 
 CORES = {
@@ -114,97 +124,88 @@ def aviso_dados_novos(prev: dict) -> None:
         )
 
 
-def mostrar() -> None:
-    prev = None
-    with planta_e_equipamento() as ctx:
-        if ctx is None:
-            return
-        repo, planta, a, eq = ctx
+@st.cache_data(show_spinner="Lendo os registros…", max_entries=16)
+def _dados(raiz: str, planta_id: str, equip_id: str, marco: tuple) -> dict:
+    """Dia a dia e meses (D114); `marco` muda quando os dados ou os fechamentos mudam."""
+    a = arm.repositorio().armazem(planta_id)
+    try:
+        pacote = a.pacote(equip_id)
+        return {
+            "dia": dia_a_dia(pacote, referencia_vigente(a, equip_id)),
+            "meses": meses(a, equip_id),
+        }
+    finally:
+        a.fechar()
+
+
+def _mes_em_foco(planos: list[dict]) -> dict | None:
+    """O mês que pede atenção (revisar ou fechar); senão o último fechado; senão o último."""
+    return next(
+        (x for x in planos if x["estado"] in ("revisar", "pronto")),
+        next(
+            (x for x in reversed(planos) if x["estado"] == "fechado"),
+            planos[-1] if planos else None,
+        ),
+    )
+
+
+def detalhes(a, eq, p: dict, fila: list) -> None:
+    """O que antes ocupava a tela: agora sob demanda (D114)."""
+    with st.expander("Onde estou no percurso da planta (5 passos)"):
         renderizar_percurso(a, eq["id"])
-        p = painel(a, eq["id"])
-        fila = fila_de_atencao(a, eq["id"])
-        if p["ultimo_fechamento"] is not None and periodos_pendentes(a, eq["id"]):
-            marco = (a.revisao, p["ultimo_fechamento"].get("id"), versao_codigo())
-            prev = _previa(str(repo.raiz), planta["id"], eq["id"], marco)
-    cob = p["cobertura"]
-    if cob["estado"] != "atualizado":
-        st.warning(cob["frase"], icon=":material/update:")
-    u = p["ultimo_fechamento"]
-    if u is None:
-        st.info(
-            "Ainda não há fechamento deste equipamento. Defina a referência e feche o primeiro "
-            "período para o painel ganhar conteúdo."
-        )
-        st.page_link(
-            "paginas/fechamentos.py", label="Ir para Fechamentos", icon=":material/event_available:"
-        )
-    else:
-        st.markdown(
-            f"#### Último fechamento · {periodo(u['periodo'])} · referência v{u['referencia_versao']}"
-        )
-        faixa_situacao(u["situacao"], u["frase"] or u["situacao_frase"])
-        st.markdown(md(f"**O que mudou:** {u['mudanca']}"))
-        if u.get("persistencia"):
-            st.markdown(md(f"**Persistência:** {u['persistencia']}"))
-    if prev:
-        aviso_dados_novos(prev)
+    with st.expander(f"Tudo o que olhar, em ordem ({len(fila)})"):
+        if not fila:
+            st.caption(
+                "Nada pendente: sem desvio estabelecido, ação sem verificação ou dado faltando."
+            )
+        for i in fila:
+            item_fila(i)
+        if any(i["categoria"] == "oportunidade" for i in fila):
+            st.caption(
+                "Oportunidades aparecem uma a uma, sem soma: podem representar a mesma perda e "
+                "nenhuma é ganho antes de verificada."
+            )
+        st.caption(CRITERIOS)
     inv = p["investigacoes"]
     acoes = p["acoes"]
     ver = p["verificado"]
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Investigações abertas", inv["abertas"], border=True)
-    c2.metric("Encerradas", inv["encerradas"], border=True)
-    c3.metric("Ações acompanhadas", len(acoes), border=True)
-    c4.metric(
-        "Economia verificada",
-        brl(ver["total_brl"]) if ver["total_brl"] is not None else "nenhuma",
-        border=True,
-        help="Só entra aqui o resultado de ação avaliada pelo protocolo de verificação.",
-    )
-    l1, l2, l3 = st.columns(3)
-    l1.page_link("paginas/acompanhamento.py", label="Atualizar dados", icon=":material/upload:")
-    l2.page_link("paginas/fechamentos.py", label="Fechamentos", icon=":material/event_available:")
-    l3.page_link("paginas/acoes.py", label="Investigações e ações", icon=":material/task_alt:")
-    st.markdown("### O que olhar primeiro")
-    if not fila:
-        st.caption("Nada pendente: sem desvio estabelecido, ação sem verificação ou dado faltando.")
-    for i in fila[:3]:
-        item_fila(i)
-    if len(fila) > 3:
-        with st.expander(f"Outros itens para acompanhar ({len(fila) - 3})"):
-            for i in fila[3:]:
-                item_fila(i)
-    if any(i["categoria"] == "oportunidade" for i in fila):
-        st.caption(
-            "Oportunidades aparecem uma a uma, sem soma: podem representar a mesma perda e "
-            "nenhuma é ganho antes de verificada."
+    with st.expander("Números do acompanhamento"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Investigações abertas", inv["abertas"], border=True)
+        c2.metric("Encerradas", inv["encerradas"], border=True)
+        c3.metric("Ações acompanhadas", len(acoes), border=True)
+        c4.metric(
+            "Economia verificada",
+            brl(ver["total_brl"]) if ver["total_brl"] is not None else "nenhuma",
+            border=True,
+            help="Só entra aqui o resultado de ação avaliada pelo protocolo de verificação.",
         )
-    with st.expander("Como a ordem é definida"):
-        st.caption(CRITERIOS)
     if ver["itens"]:
-        st.markdown("### Resultados verificados")
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Ação": f"#{v['intervencao_id']} · {v['descricao']}",
-                        "Período avaliado": periodo(v["periodo"]),
-                        "Economia verificada": brl(v["valor_brl"]),
-                        "Faixa": f"{brl(v['faixa_brl'][0])} a {brl(v['faixa_brl'][1])}",
-                        "Benefício líquido": brl(v["beneficio_liquido_brl"]),
-                        "Na soma": "não (janela sobreposta)"
-                        if v["intervencao_id"] in ver["excluidas_por_sobreposicao"]
-                        else "sim",
-                    }
-                    for v in ver["itens"]
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
-        )
-        if ver["beneficio_liquido_brl"] is not None:
-            st.markdown(md(f"**Benefício líquido somado:** {brl(ver['beneficio_liquido_brl'])}"))
-        st.caption(ver["nota"])
+        with st.expander("Resultados verificados"):
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "Ação": f"#{v['intervencao_id']} · {v['descricao']}",
+                            "Período avaliado": periodo(v["periodo"]),
+                            "Economia verificada": brl(v["valor_brl"]),
+                            "Faixa": f"{brl(v['faixa_brl'][0])} a {brl(v['faixa_brl'][1])}",
+                            "Benefício líquido": brl(v["beneficio_liquido_brl"]),
+                            "Na soma": "não (janela sobreposta)"
+                            if v["intervencao_id"] in ver["excluidas_por_sobreposicao"]
+                            else "sim",
+                        }
+                        for v in ver["itens"]
+                    ]
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            if ver["beneficio_liquido_brl"] is not None:
+                st.markdown(
+                    md(f"**Benefício líquido somado:** {brl(ver['beneficio_liquido_brl'])}")
+                )
+            st.caption(ver["nota"])
     na_fila = {i["titulo"] for i in fila}
     outras = [o for o in p["oportunidades_nao_confirmadas"] if o["titulo"] not in na_fila]
     if outras:
@@ -217,23 +218,58 @@ def mostrar() -> None:
                         f"{brl(o['impacto_brl'])} associado"
                     )
                 )
-    if acoes:
-        with st.expander(f"Ações acompanhadas ({len(acoes)})"):
-            for x in acoes:
-                st.markdown(md(f"- {data(x['data'])} · {x['descricao']}: {x['frase']}"))
     if p["pendencias"]:
         with st.expander(f"Pendências dos registros ({len(p['pendencias'])})"):
             for x in p["pendencias"]:
                 st.markdown(md(f"- {x}"))
+
+
+def mostrar() -> None:
+    with planta_e_equipamento() as ctx:
+        if ctx is None:
+            return
+        repo, planta, a, eq = ctx
+        p = painel(a, eq["id"])
+        fila = fila_de_atencao(a, eq["id"])
+        vigentes = fechamentos_vigentes(a, eq["id"])
+        marco = (a.revisao, tuple(x["id"] for x in vigentes), versao_codigo())
+        dados = _dados(str(repo.raiz), planta["id"], eq["id"], marco)
+        plano = _mes_em_foco(dados["meses"])
+        topo(planta, eq, p["cobertura"], plano)
+        dia_a_dia_bloco(dados["dia"])
+        prev = None
+        if vigentes and periodos_pendentes(a, eq["id"]):
+            prev = _previa(str(repo.raiz), planta["id"], eq["id"], marco)
+        if prev:
+            aviso_dados_novos(prev)
+        com_conta = [
+            x for x in vigentes if x["resultado"]["nucleo"]["explicacao_conta"].get("disponivel")
+        ]
+        f = (com_conta or vigentes or [None])[-1]
+        resumo = (
+            resumo_do_mes(a, eq["id"], f["resultado"].get("mes") or chave_do_mes(f["fim"]))
+            if f is not None
+            else None
+        )
+        if resumo and len(resumo["trechos"]) < 2:
+            resumo = None  # um trecho só: as respostas do próprio fechamento bastam
+        cinco_respostas(f, resumo, a.pacote(eq["id"]) if f is not None else None, fila, p)
+        if vigentes:
+            renderizar_linha_do_tempo(a, eq["id"])
+        else:
+            st.markdown("### Histórico")
+            st.caption("O histórico começa no primeiro fechamento.")
+        detalhes(a, eq, p, fila)
     st.caption(
         "Desvio monetizado não é economia; oportunidade não confirmada não é ganho; só a "
-        "economia verificada pelo protocolo entra como resultado. O benefício é das ações da planta."
+        "economia verificada pelo protocolo entra como resultado. O benefício é das ações da planta. "
+        "A EULER recomenda verificações; não comanda a caldeira."
     )
 
 
 cabecalho(
     "Painel",
-    "O que mudou, o que olhar primeiro e o que já foi verificado.",
+    "Como a caldeira está no dia a dia, quanto custou o mês e o que verificar.",
     "Acompanhar a planta",
 )
 mostrar()

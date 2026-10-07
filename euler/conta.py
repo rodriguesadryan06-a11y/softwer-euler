@@ -670,7 +670,7 @@ def resposta_da_ponte(grupos: list[dict], total: float, nao_separados=()) -> str
         (g for g in grupos if g["custo_brl"] is not None and abs(g["custo_brl"]) >= 0.5),
         key=lambda g: -abs(g["custo_brl"]),
     ):
-        nota = f" ({g['nota']})" if g.get("nota") and g["id"] != "sem_explicacao" else ""
+        nota = f" — {g['nota']}" if g.get("nota") and g["id"] != "sem_explicacao" else ""
         sentido = "a mais" if g["custo_brl"] > 0 else "a menos"
         partes.append(f"{_brl(abs(g['custo_brl']))} {sentido} {_PARTE_DA_PONTE[g['id']]}{nota}")
     if abs(total) < 0.5:

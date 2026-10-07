@@ -156,8 +156,7 @@ def mostrar() -> None:
                 icon=":material/event_available:",
             )
             return
-        renderizar_linha_do_tempo(a, eq["id"])
-        st.divider()
+        # conclusão do fechamento primeiro; o histórico vem depois (D114)
         por_id = {f["id"]: f for f in fs}
         ident = st.selectbox(
             "Fechamento salvo",
@@ -167,6 +166,8 @@ def mostrar() -> None:
         )
         conta_salva(por_id[ident], ORIGEM_DA_CLASSE.get(planta["classe"]))
         renderizar_entrega(a, eq, ident)
+        st.divider()
+        renderizar_linha_do_tempo(a, eq["id"])
         ver = painel(a, eq["id"])["verificado"]
     st.markdown("### Resultados das ações · histórico do equipamento")
     st.caption("Histórico completo disponível hoje; não se limita ao período do fechamento acima.")

@@ -20,6 +20,7 @@ from componentes import cabecalho, incerteza_explicada, md
 
 from euler.acompanhamento import ESTADOS, abrir_do_fechamento
 from euler.armazem import ORIGEM_DA_CLASSE
+from euler.conta import conclusao_financeira
 from euler.entrega import entrega_do_fechamento, texto_entrega
 from euler.evidencias import ROTULOS
 from euler.fechamento import (
@@ -137,6 +138,14 @@ def mostrar_fechamento(a, f, nome_autor) -> None:
             + (f" ({n['politica_custo']['motivo']})" if n["politica_custo"].get("motivo") else "")
         )
         incerteza_explicada((conta.get("desvio") or {}).get("incerteza"), recolhido=True)
+        ponte = (conta.get("variacao") or {}) and conclusao_financeira(conta)["ponte"]
+        if ponte and ponte.get("resposta"):
+            st.markdown(md(f"**Por que a conta mudou:** {ponte['resposta']}"))
+    if r.get("condicoes"):
+        with st.expander("Condições comparadas: carga e regime (não ajustados)"):
+            for frase in r["condicoes"]["frases"]:
+                st.markdown(md(f"- {frase}"))
+            st.caption(r["condicoes"]["nao_ajustado"])
     st.markdown(
         md(f"**O que mudou desde o fechamento anterior:** {r['comparacao_anterior']['frase']}")
     )
