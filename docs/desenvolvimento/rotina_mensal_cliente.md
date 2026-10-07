@@ -40,3 +40,15 @@ Não foram alteradas equações físicas, golden ou tolerâncias.
 Observar com um usuário da planta se ele identifica sozinho o mês, a cobertura, os valores
 e a próxima ação. Medir tempo para preparar/conferir o fechamento, frequência de retorno,
 ações acompanhadas e renovação. Não atribuir economia ao software sem verificação da ação.
+
+## Correção dos cliques nas abas
+
+O cabeçalho fixo e transparente do Streamlit ocupava os primeiros 60 px da tela.
+As abas começavam em 34,4 px, e a barra interceptava os cliques. O espaço superior
+agora é de 4,75 rem, inclusive em telas estreitas; as abas começam abaixo da barra.
+
+Verificação: falha reproduzida no navegador antes da alteração; depois, abertura de
+Investigação e Financeiro por clique, além de teste da área clicável das seis abas
+de Análise em tela normal e de 390 px (menu lateral recolhido). Os quatro testes
+de navegação e o lint/formatação do arquivo alterado passaram. AppTest verifica as
+rotas, mas não detecta sobreposição visual; o teste no navegador é necessário.
