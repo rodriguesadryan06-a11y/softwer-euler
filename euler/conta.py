@@ -65,6 +65,42 @@ def _t(v: float) -> str:
     return f"{num(abs(v), 1)} t"
 
 
+# Por que um desvio não ficou estabelecido (D110): cada caso tem o seu motivo, nunca um
+# motivo genérico que possa ser o errado.
+FRASE_INCONCLUSIVO = {
+    "faixa_inclui_zero": "a diferença cabe na incerteza das medições",
+    "cenario_do_patio": (
+        "num cenário do pátio (combustível queimado diferente do recebido) a diferença pode "
+        "ser zero"
+    ),
+    "sem_faixa": (
+        "sem a incerteza declarada de todos os instrumentos, não dá para saber se a "
+        "diferença é maior que o erro de medição"
+    ),
+}
+
+
+def motivo_inconclusivo(desvio: dict | None) -> str | None:
+    """Motivo de um desvio não estabelecido, derivado do próprio resultado gravado.
+
+    "sem_faixa": falta incerteza para a faixa; "faixa_inclui_zero": a faixa das medições
+    inclui zero; "cenario_do_patio": a faixa principal exclui zero, mas um cenário do pátio
+    (recebido × queimado) a cruza. None quando o desvio está estabelecido ou indisponível.
+    Funciona também com fechamentos antigos (usa só `estado` e `faixa_t`).
+    """
+    if not desvio:
+        return None
+    estado = desvio.get("estado")
+    if estado == "sem_faixa":
+        return "sem_faixa"
+    if estado != "nao_estabelecido":
+        return None
+    faixa = desvio.get("faixa_t")
+    if faixa and faixa[0] <= 0 <= faixa[1]:
+        return "faixa_inclui_zero"
+    return "cenario_do_patio"
+
+
 def explicar_conta(
     *,
     combustivel_ref_t: float | None,

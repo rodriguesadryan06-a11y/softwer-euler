@@ -166,13 +166,19 @@ def ler_planilha(fonte: str | Path | bytes | BinaryIO) -> dict[str, pd.DataFrame
     Retorna {nome_da_tabela: tabela bruta com `linha`} só para as abas com nome de
     tabela (diario, combustivel, amostras, eventos, instrumentos).
     """
-    abas = pd.read_excel(io.BytesIO(_bytes(fonte)), sheet_name=None, dtype=str, header=0)
+    conteudo = _bytes(fonte)
+    abas = pd.read_excel(io.BytesIO(conteudo), sheet_name=None, dtype=str, header=0)
+    porcentagens = porcentagens_excel(conteudo)
     resultado = {}
     for nome_aba, df in abas.items():
         nome = nome_aba.strip().lower()
         if nome not in TABELAS:
             continue
         df = df.fillna("").astype(str)
+        # cabeçalho na linha 1 do Excel: a linha r da planilha é a linha r - 2 da tabela
+        for r, c, texto in porcentagens.get(nome_aba, []):
+            if r >= 2 and r - 2 < len(df) and c - 1 < len(df.columns):
+                df.iat[r - 2, c - 1] = texto
         df.columns = [str(c).strip() for c in df.columns]
         df = df[[c for c in df.columns if not c.startswith("Unnamed")]]
         if not df.empty:
@@ -180,6 +186,40 @@ def ler_planilha(fonte: str | Path | bytes | BinaryIO) -> dict[str, pd.DataFrame
         df.insert(0, "linha", df.index + 2)
         resultado[nome] = df.reset_index(drop=True)
     return resultado
+
+
+def porcentagens_excel(conteudo: bytes) -> dict[str, list[tuple[int, int, str]]]:
+    """Células numéricas com formato de porcentagem no Excel: {aba: [(linha, coluna, texto)]}.
+
+    O Excel guarda "45%" como 0,45 e mostra 45%. O texto devolvido é o que a pessoa vê
+    ("45%"); a conversão para a unidade da coluna é feita depois por `numero_na_unidade`,
+    uma vez só. Linha e coluna começam em 1 (A1 = (1, 1)).
+    """
+    from openpyxl import load_workbook
+
+    try:
+        wb = load_workbook(io.BytesIO(conteudo), data_only=True, read_only=True)
+    except Exception:  # noqa: BLE001 — quem lê a planilha já informa o erro de formato
+        return {}
+    saida: dict[str, list[tuple[int, int, str]]] = {}
+    try:
+        for ws in wb.worksheets:
+            for linha in ws.iter_rows():
+                for cel in linha:
+                    v = getattr(cel, "value", None)
+                    formato = getattr(cel, "number_format", "") or ""
+                    if (
+                        isinstance(v, int | float)
+                        and not isinstance(v, bool)
+                        and "%" in formato
+                        and cel.row is not None
+                    ):
+                        saida.setdefault(ws.title, []).append(
+                            (cel.row, cel.column, f"{v * 100:.12g}%")
+                        )
+    finally:
+        wb.close()
+    return saida
 
 
 # ---------------------------------------------------------------- conversões
@@ -228,6 +268,25 @@ def _numero(texto: str, virgula_decimal: bool) -> tuple[float | None, str | None
         t = t.replace(",", ".")
         interpretacao = "vírgula lida como decimal"
     return float(t), interpretacao
+
+
+def numero_na_unidade(texto: str, virgula_decimal: bool, unidade: str) -> tuple[float, str | None]:
+    """Número do texto expresso em `unidade`. Retorna (valor, interpretação feita ou None).
+
+    Texto com "%" no fim (célula de porcentagem do Excel, ou escrita assim) vale n/100:
+    entra como n numa unidade em %, como n/100 numa unidade em fração, e é recusado em
+    qualquer outra unidade (ValueError). Sem "%", o número vale como está.
+    """
+    t = texto.strip()
+    if not t.endswith("%"):
+        return _numero(t, virgula_decimal)
+    valor, _ = _numero(t[:-1], virgula_decimal)
+    u = _sem_acento(unidade.strip().lower())
+    if u.startswith("%"):
+        return valor, "valor com % lido em porcentagem"
+    if u.startswith("fracao"):
+        return valor / 100, "valor com % convertido para fração (45% → 0,45)"
+    raise ValueError(f"'{t}' é porcentagem e a unidade é {unidade}")
 
 
 def _instante(texto: str, fuso: str) -> tuple[pd.Timestamp, list[str]]:
@@ -294,7 +353,7 @@ def _converter_coluna(
             continue
         try:
             if col.tipo == "numero":
-                valor, interp = _numero(texto, virgula_decimal)
+                valor, interp = numero_na_unidade(texto, virgula_decimal, col.unidade)
                 if interp:
                     interpretadas.setdefault(interp, []).append(int(linha))
                 if col.faixa and not col.faixa[0] <= valor <= col.faixa[1]:

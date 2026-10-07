@@ -18,6 +18,7 @@ import pandas as pd
 
 from euler.acompanhamento import intervencoes, ultima_avaliacao
 from euler.armazem import Armazem
+from euler.conta import FRASE_INCONCLUSIVO, motivo_inconclusivo
 from euler.fechamento import fechamentos
 
 
@@ -33,6 +34,11 @@ def _qualidade(f: dict) -> tuple[str, str]:
     cp = n["conta_do_periodo"]
     if not c.get("disponivel"):
         return "conta indisponível", c.get("motivo") or "Conta indisponível."
+    if (c.get("consumido") or {}).get("preco_brl_t") is None:
+        return (
+            "sem preço",
+            "Sem preço do combustível no período: a conta fica em toneladas, sem valor em reais.",
+        )
     if cp.get("lotes_sem_valor"):
         return "preço incompleto", f"{cp['lotes_sem_valor']} recebimento(s) sem preço."
     if c["desvio"]["estado"] == "sem_faixa":
@@ -84,6 +90,7 @@ def linha_do_tempo(a: Armazem, equip_id: str, ate_fechamento: int | None = None)
                 "desvio_brl": desvio,
                 "faixa_brl": faixa,
                 "estado": c["desvio"]["estado"] if disp else None,
+                "motivo_inconclusivo": motivo_inconclusivo(c["desvio"]) if disp else None,
                 "custo_por_t_vapor_brl": custo / vapor if custo is not None and vapor else None,
                 "custo_por_dia_brl": custo / dias if custo is not None and dias > 0 else None,
                 "desvio_por_t_vapor_brl": desvio / vapor if desvio is not None and vapor else None,
@@ -144,8 +151,9 @@ def _leitura(ps: list[dict], com_acoes: bool = True) -> list[str]:
                 "pode ser classificado.",
                 "abaixo": "O último fechamento ficou abaixo do esperado, além da incerteza. "
                 "Isso não é economia verificada.",
-                "nao_estabelecido": "Nenhum desvio estabelecido no último fechamento: a "
-                "diferença cabe na incerteza das medições.",
+                "nao_estabelecido": "Nenhum desvio estabelecido no último fechamento: "
+                + FRASE_INCONCLUSIVO[ultimo.get("motivo_inconclusivo") or "faixa_inclui_zero"]
+                + ".",
             }[ultimo["estado"]]
         )
     for p in ps if com_acoes else ():

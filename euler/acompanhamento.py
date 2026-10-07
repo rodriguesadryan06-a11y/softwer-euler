@@ -20,6 +20,7 @@ import json
 import pandas as pd
 
 from euler.armazem import Armazem, ErroArmazem, agora_iso, jdump, sha
+from euler.conta import FRASE_INCONCLUSIVO, motivo_inconclusivo
 from euler.formato import num
 from euler.investigacao import investigar
 from euler.periodos import periodos_entre_estoques
@@ -515,28 +516,7 @@ def avaliar_intervencao(a: Armazem, int_id: int, autor: str) -> dict:
     base["comparabilidade"] = {"comparavel": not bloqueios, "motivos": bloqueios}
     base["outras_intervencoes"] = [x["id"] for x in outras]
 
-    estado = desvio.get("estado")
-    if estado is None:
-        resultado, frase = "nao_avaliavel", conta.get("motivo") or "Conta indisponível."
-    elif estado == "acima":
-        resultado = "negativo"
-        frase = "Depois da ação, o consumo ficou acima da referência ajustada, fora da incerteza."
-    elif estado in ("nao_estabelecido", "sem_faixa"):
-        resultado = "inconclusivo"
-        frase = "A diferença depois da ação ficou dentro da incerteza (ou sem incerteza declarada)."
-    elif bloqueios:
-        resultado = "inconclusivo"
-        frase = (
-            "Consumo abaixo da referência ajustada, mas não é possível associar à ação: "
-            + "; ".join(bloqueios)
-            + "."
-        )
-    else:
-        resultado = "positivo"
-        frase = (
-            "Consumo abaixo da referência ajustada, fora da incerteza, em condições comparáveis "
-            "e sem outra mudança registrada: melhoria associada à ação (não prova de causa)."
-        )
+    resultado, frase = resultado_da_avaliacao(desvio, conta.get("motivo"), bloqueios)
     if resultado == "positivo":
         lo, hi = desvio["faixa_t"]
         base["melhoria_associada"] = {
@@ -550,6 +530,41 @@ def avaliar_intervencao(a: Armazem, int_id: int, autor: str) -> dict:
         base["economia_verificada"] = _protocolo(a, it, j, preco, base, minimo, pos)
     return _gravar_avaliacao(
         a, it, revisao, ref, {**base, "resultado": resultado, "frase": frase}, autor
+    )
+
+
+def resultado_da_avaliacao(
+    desvio: dict, motivo_conta: str | None, bloqueios: list[str]
+) -> tuple[str, str]:
+    """Resultado da avaliação de uma ação e a frase com o motivo certo (D94, D110).
+
+    "nao_avaliavel" sem conta; "negativo" acima da referência; "inconclusivo" quando o
+    desvio não foi estabelecido (com o motivo do próprio desvio: faixa que inclui zero,
+    cenário do pátio ou falta de incerteza) ou quando a melhora não pode ser associada à
+    ação (bloqueios); "positivo" só abaixo, fora da incerteza e sem bloqueios.
+    """
+    estado = desvio.get("estado")
+    outros = ("; ".join(bloqueios) + ".") if bloqueios else ""
+    if estado is None:
+        return "nao_avaliavel", motivo_conta or "Conta indisponível."
+    if estado == "acima":
+        frase = "Depois da ação, o consumo ficou acima da referência ajustada, fora da incerteza."
+        return "negativo", frase + (f" Atenção na leitura: {outros}" if outros else "")
+    if estado in ("nao_estabelecido", "sem_faixa"):
+        motivo = FRASE_INCONCLUSIVO[motivo_inconclusivo(desvio)]
+        frase = f"Depois da ação, a diferença não ficou estabelecida: {motivo}."
+        return "inconclusivo", frase + (f" Além disso: {outros}" if outros else "")
+    if bloqueios:
+        return (
+            "inconclusivo",
+            "Consumo abaixo da referência ajustada, mas não é possível associar à ação: " + outros,
+        )
+    return (
+        "positivo",
+        (
+            "Consumo abaixo da referência ajustada, fora da incerteza, em condições comparáveis "
+            "e sem outra mudança registrada: melhoria associada à ação (não prova de causa)."
+        ),
     )
 
 

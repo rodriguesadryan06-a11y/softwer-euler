@@ -24,6 +24,7 @@ import pandas as pd
 
 from euler.armazem import (
     COLUNA_TEMPO,
+    ORIGEM_DA_CLASSE,
     POLITICAS_CUSTO,
     Armazem,
     ErroArmazem,
@@ -31,7 +32,7 @@ from euler.armazem import (
     jdump,
     sha,
 )
-from euler.conta import explicar_conta
+from euler.conta import FRASE_INCONCLUSIVO, explicar_conta, motivo_inconclusivo
 from euler.formato import num
 from euler.investigacao import investigar
 from euler.periodos import _cenarios, _lotes_todos, periodos_entre_estoques, vapor_e_combustivel
@@ -577,6 +578,20 @@ def _situacao(nucleo: dict) -> str | None:
     return conta["desvio"]["estado"] if conta.get("disponivel") else None
 
 
+def frase_situacao(nucleo: dict) -> str:
+    """Frase curta da situação, com o motivo certo quando o desvio não foi estabelecido."""
+    situacao = _situacao(nucleo)
+    if situacao == "nao_estabelecido":
+        motivo = motivo_inconclusivo(nucleo["explicacao_conta"].get("desvio"))
+        if motivo == "cenario_do_patio":
+            return (
+                "Diferença não estabelecida: "
+                + FRASE_INCONCLUSIVO[motivo]
+                + "; sem mudança de desempenho estabelecida."
+            )
+    return SITUACAO.get(situacao, "Conta indisponível neste período.")
+
+
 def _comparar_com_anterior(nucleo: dict, anterior: dict | None) -> dict:
     if anterior is None:
         return {"existe": False, "frase": "Primeiro fechamento deste equipamento."}
@@ -708,7 +723,7 @@ def previa_do_proximo_fechamento(a: Armazem, equip_id: str) -> dict | None:
     ultimo = anteriores[-1]
     antes = ultimo["resultado"]["situacao"] if ultimo["referencia_id"] == ref["id"] else None
     mudanca = mudanca_de_situacao(antes, novo)
-    situacao_frase = SITUACAO.get(novo, "Conta indisponível neste período.")
+    situacao_frase = frase_situacao(nucleo)
     frase = {
         "saiu_da_faixa": "Pela prévia, o consumo saiu da faixa da referência. ",
         "voltou_a_faixa": "Pela prévia, o consumo voltou para dentro da faixa da referência. ",
@@ -774,7 +789,9 @@ def produzir_fechamento(
         "nucleo": nucleo,
         "nucleo_sha": sha(nucleo),
         "situacao": _situacao(nucleo),
-        "situacao_frase": SITUACAO.get(_situacao(nucleo), "Conta indisponível neste período."),
+        "situacao_frase": frase_situacao(nucleo),
+        # origem dos dados da planta (D110): os relatórios exportados levam o selo
+        "origem_dados": ORIGEM_DA_CLASSE.get(a.info["classe"]),
         "comparacao_anterior": _comparar_com_anterior(
             nucleo, anteriores[-1] if anteriores else None
         ),

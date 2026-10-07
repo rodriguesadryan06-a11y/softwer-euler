@@ -303,8 +303,23 @@ def painel(a: Armazem, equip_id: str) -> dict:
     }
 
 
-def texto_fechamento(f: dict) -> str:
-    """Relatório em Markdown gerado do mesmo objeto que a tela mostra."""
+SELO_ORIGEM = {
+    "sintetico": "> **DADOS SINTÉTICOS** · não representam uma planta real.",
+    "publico": "> **DADOS PÚBLICOS** · de fonte pública, não de um cliente.",
+}
+
+
+def selo_origem(origem: str | None) -> list[str]:
+    """Linhas do selo de origem dos dados para os relatórios exportados (D110)."""
+    return [SELO_ORIGEM[origem], ""] if origem in SELO_ORIGEM else []
+
+
+def texto_fechamento(f: dict, origem: str | None = None) -> str:
+    """Relatório em Markdown gerado do mesmo objeto que a tela mostra.
+
+    `origem`: origem dos dados da planta ("sintetico", "publico", "real"), para fechamentos
+    gravados antes de o resultado guardar a origem; a gravada no fechamento tem prioridade.
+    """
     r = f["resultado"]
     n = r["nucleo"]
     conta = n["explicacao_conta"]
@@ -312,6 +327,7 @@ def texto_fechamento(f: dict) -> str:
     linhas = [
         f"# Fechamento #{f['id']} · {f['equipamento_id']}",
         "",
+        *selo_origem(r.get("origem_dados") or origem),
         (
             f"Período: {pd.Timestamp(n['periodo']['inicio']):%d/%m/%Y} a "
             f"{pd.Timestamp(n['periodo']['fim']):%d/%m/%Y} · referência v{n['referencia']['versao']} "

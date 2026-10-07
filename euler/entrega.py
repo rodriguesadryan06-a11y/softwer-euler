@@ -18,12 +18,12 @@ from datetime import UTC, datetime
 import pandas as pd
 
 from euler.acompanhamento import ESTADOS, intervencoes, investigacoes, ultima_avaliacao
-from euler.armazem import Armazem
+from euler.armazem import ORIGEM_DA_CLASSE, Armazem
 from euler.conta import conclusao_financeira
 from euler.fechamento import fechamento, fechamentos, periodos_pendentes
 from euler.formato import num
 from euler.linha_do_tempo import linha_do_tempo
-from euler.painel import painel
+from euler.painel import painel, selo_origem
 
 SEGURANCA = (
     "A EULER investiga e recomenda verificações; não comanda a caldeira. Qualquer ajuste "
@@ -126,6 +126,7 @@ def entrega_do_fechamento(
         "nucleo_sha": r["nucleo_sha"],
         "revisao_dados": f["revisao_dados"],
         "versao_euler": f["versao_euler"],
+        "origem_dados": r.get("origem_dados") or ORIGEM_DA_CLASSE.get(a.info["classe"]),
         "seguranca": SEGURANCA,
     }
 
@@ -228,6 +229,7 @@ def texto_entrega(e: dict, nome_equipamento: str | None = None) -> str:
     linhas = [
         f"# Entrega do fechamento #{e['fechamento_id']} · {nome}",
         "",
+        *selo_origem(e.get("origem_dados")),
         (
             f"Período: {_data(e['periodo']['inicio'])} a {_data(e['periodo']['fim'])} · referência "
             f"v{e['referencia_versao']} · entrega gerada em {_data(e['gerada_em'])}."

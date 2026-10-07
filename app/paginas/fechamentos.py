@@ -19,6 +19,7 @@ from acompanhamento_ui import (
 from componentes import cabecalho, incerteza_explicada, md
 
 from euler.acompanhamento import ESTADOS, abrir_do_fechamento
+from euler.armazem import ORIGEM_DA_CLASSE
 from euler.entrega import entrega_do_fechamento, texto_entrega
 from euler.evidencias import ROTULOS
 from euler.fechamento import (
@@ -255,7 +256,10 @@ def mostrar_fechamento(a, f, nome_autor) -> None:
                 (st.success if rep["identico"] else st.info)(rep["frase"])
         c1, c2, c3 = st.columns(3)
         c1.download_button(
-            "Baixar relatório", texto_fechamento(f), f"fechamento-{f['id']}.md", "text/markdown"
+            "Baixar relatório",
+            texto_fechamento(f, ORIGEM_DA_CLASSE.get(a.info["classe"])),
+            f"fechamento-{f['id']}.md",
+            "text/markdown",
         )
         c3.download_button(
             "Baixar a entrega do fechamento",

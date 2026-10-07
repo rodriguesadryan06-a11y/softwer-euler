@@ -131,13 +131,25 @@ def percurso(a: Armazem, equip_id: str, agora=None) -> list[dict]:
     else:
         passos["acao"] = ("bloqueado", "Depende de uma investigação aberta.")
 
-    # 5 · resultado
-    sem_avaliacao = [x for x in acoes if ultima_avaliacao(a, x["id"]) is None]
-    if sem_avaliacao:
-        passos["resultado"] = (
-            "pendente",
-            f"{len(sem_avaliacao)} ação(ões) ainda sem avaliação do resultado.",
-        )
+    # 5 · resultado: "não avaliável" não conclui a etapa (D110)
+    avaliacoes = {x["id"]: ultima_avaliacao(a, x["id"]) for x in acoes}
+    sem_avaliacao = [x for x in acoes if avaliacoes[x["id"]] is None]
+    nao_avaliaveis = [
+        x
+        for x in acoes
+        if avaliacoes[x["id"]] is not None
+        and avaliacoes[x["id"]]["resultado"]["resultado"] == "nao_avaliavel"
+    ]
+    if sem_avaliacao or nao_avaliaveis:
+        partes = []
+        if sem_avaliacao:
+            partes.append(f"{len(sem_avaliacao)} ação(ões) ainda sem avaliação do resultado")
+        if nao_avaliaveis:
+            partes.append(
+                f'{len(nao_avaliaveis)} ação(ões) com avaliação "não avaliável" '
+                "(reavaliar quando houver dados)"
+            )
+        passos["resultado"] = ("pendente", "; ".join(partes) + ".")
     elif acoes:
         passos["resultado"] = ("feito", "Todas as ações registradas já foram avaliadas.")
     else:

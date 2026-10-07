@@ -19,7 +19,7 @@ import json
 import math
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from zipfile import BadZipFile
 
@@ -27,7 +27,12 @@ import pandas as pd
 from vocabulario_fabrica import nota, sugerir, termos, unidade_sugerida
 
 from euler.io.esquemas import TABELAS, rotulo_coluna
-from euler.io.leitura import ALIASES_COLUNAS, _numero, ler_csv
+from euler.io.leitura import (
+    ALIASES_COLUNAS,
+    ler_csv,
+    numero_na_unidade,
+    porcentagens_excel,
+)
 
 
 @dataclass
@@ -41,6 +46,14 @@ class FonteGuiada:
     """Linha do cabeçalho no arquivo original (1 = primeira linha)."""
     cabecalho_duplo: bool = False
     """Cabeçalho em duas linhas (grupo em cima, subcolunas embaixo, como em células mescladas)."""
+    letras: dict[str, str] = field(default_factory=dict)
+    """Letra de cada coluna no arquivo original ("Umidade (%)" → "D"), para apontar a célula."""
+
+    def onde(self, coluna: str, linha: int) -> str:
+        """Localização exata de um valor no original: aba (ou arquivo), célula e coluna."""
+        letra = self.letras.get(coluna)
+        celula = f"célula {letra}{linha}" if letra else f"linha {linha}"
+        return f"{self.aba or self.arquivo}, {celula} (“{coluna}”)"
 
 
 @dataclass(frozen=True)
@@ -239,7 +252,8 @@ def ler_fontes(
                     )
                 df = pd.DataFrame(registros, columns=["linha", *nomes])
                 virgula = sep == ";"
-            fontes.append(FonteGuiada(nome, nome, None, df, virgula, h + 1, duplo))
+            letras = {n: _letra(j) for n, j in zip(nomes, indices, strict=True)}
+            fontes.append(FonteGuiada(nome, nome, None, df, virgula, h + 1, duplo, letras))
         elif nome.lower().endswith(".xlsx"):
             try:
                 abas = pd.read_excel(
@@ -253,11 +267,16 @@ def ler_fontes(
                 raise ValueError(
                     f"{nome}: não foi possível ler o Excel. Confira o formato .xlsx."
                 ) from exc
+            porcentagens = porcentagens_excel(conteudo)
             for aba, bruto in abas.items():
                 if bruto.empty:
                     continue
                 chave = f"{nome}::{aba}"
                 bruto = bruto.fillna("").astype(str)
+                # célula de porcentagem: o texto que o Excel mostra ("45%"), convertido uma vez
+                for r, c, texto in porcentagens.get(aba, []):
+                    if r - 1 < len(bruto) and c - 1 < len(bruto.columns):
+                        bruto.iat[r - 1, c - 1] = texto
                 linhas = bruto.values.tolist()
                 h_auto, duplo_auto = localizar_cabecalho(linhas)
                 h = cabecalhos.get(chave, h_auto + 1) - 1
@@ -274,8 +293,11 @@ def ler_fontes(
                 df.columns = nomes
                 df.insert(0, "linha", df.index + 1)
                 df = df[df[nomes].apply(lambda r: any(v.strip() for v in r), axis=1)]
+                letras = {n: _letra(j) for n, j in zip(nomes, indices, strict=True)}
                 fontes.append(
-                    FonteGuiada(chave, nome, aba, df.reset_index(drop=True), False, h + 1, duplo)
+                    FonteGuiada(
+                        chave, nome, aba, df.reset_index(drop=True), False, h + 1, duplo, letras
+                    )
                 )
     if not fontes:
         raise ValueError(
@@ -513,6 +535,28 @@ def unidades_permitidas(col) -> dict[str, tuple[float, float]]:
 _MARCAS_AUSENTE = {"-", "--", "nan", "na", "n/a", "s/d", "sd", "null", "none"}
 
 
+def _converter(fonte, coluna, v, linha, unidade, fator, offset) -> str:
+    """Um valor da planilha na unidade do contrato; erro aponta a célula exata."""
+    texto = str(v).strip()
+    if not texto or texto.lower() in _MARCAS_AUSENTE:
+        return ""
+    try:
+        numero = numero_na_unidade(texto, fonte.virgula_decimal, unidade)[0]
+        resultado = numero * fator + offset
+        if not math.isfinite(resultado):
+            raise ValueError(texto)
+        return str(resultado)
+    except (ValueError, TypeError, OverflowError) as exc:
+        porque = (
+            "é porcentagem; escolha uma unidade em % ou em fração"
+            if texto.endswith("%")
+            else f"não é um número em {unidade}"
+        )
+        raise ValueError(
+            f"{fonte.onde(coluna, int(linha))}: '{texto}' {porque}. Confira a unidade e o valor."
+        ) from exc
+
+
 def preparar_lote(arquivos: dict[str, bytes], decisoes: dict) -> dict[str, bytes]:
     """Produz CSVs do contrato e trilha auditável. Ausentes continuam vazios.
 
@@ -573,22 +617,13 @@ def preparar_lote(arquivos: dict[str, bytes], decisoes: dict) -> dict[str, bytes
                         f"Confirme a unidade de {origem}; unidade ausente ou incompatível."
                     )
                 fator, offset = unidades_permitidas(col)[unidade]
-
-                def converter(v, virgula=fonte.virgula_decimal, f=fator, o=offset, nome=origem):
-                    if not v.strip() or v.strip().lower() in _MARCAS_AUSENTE:
-                        return ""
-                    try:
-                        numero = _numero(v, virgula)[0]
-                        resultado = numero * f + o
-                        if not math.isfinite(resultado):
-                            raise ValueError(v)
-                        return str(resultado)
-                    except (ValueError, TypeError, OverflowError) as exc:
-                        raise ValueError(
-                            f"{nome}: não foi possível converter '{v}'. Confira a unidade e o valor."
-                        ) from exc
-
-                valores = valores.map(converter)
+                valores = pd.Series(
+                    [
+                        _converter(fonte, origem, v, linha, unidade, fator, offset)
+                        for v, linha in zip(valores, fonte.bruto["linha"], strict=True)
+                    ],
+                    index=valores.index,
+                )
             df[alvo] = valores
         if combinar:
             alvo, c_data, c_hora = combinar.get("alvo"), combinar.get("data"), combinar.get("hora")
