@@ -20,7 +20,7 @@ import pandas as pd
 from euler.acompanhamento import ESTADOS, intervencoes, investigacoes, ultima_avaliacao
 from euler.armazem import ORIGEM_DA_CLASSE, Armazem
 from euler.conta import conclusao_financeira
-from euler.fechamento import fechamento, fechamentos, periodos_pendentes
+from euler.fechamento import fechamento, fechamentos_vigentes, periodos_pendentes
 from euler.formato import num
 from euler.linha_do_tempo import linha_do_tempo
 from euler.painel import painel, selo_origem
@@ -48,7 +48,7 @@ def entrega_do_fechamento(
     ficam None; nada é preenchido nem somado além do que o painel já soma (D95).
     """
     if fechamento_id is None:
-        lista = fechamentos(a, equip_id)
+        lista = fechamentos_vigentes(a, equip_id)
         if not lista:
             return None
         f = lista[-1]

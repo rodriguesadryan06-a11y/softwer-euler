@@ -15,7 +15,7 @@ import pandas as pd
 
 from euler.acompanhamento import intervencoes, investigacoes, ultima_avaliacao
 from euler.armazem import Armazem
-from euler.fechamento import fechamentos, periodos_pendentes, referencia_vigente
+from euler.fechamento import fechamentos_vigentes, periodos_pendentes, referencia_vigente
 
 PASSOS = (
     ("registros", "Enviar registros", "dados"),
@@ -46,7 +46,7 @@ def percurso(a: Armazem, equip_id: str, agora=None) -> list[dict]:
     `agora` só serve para testes (data de hoje na cobertura dos registros).
     """
     cob = a.cobertura(equip_id, agora=agora)
-    fs = fechamentos(a, equip_id)
+    fs = fechamentos_vigentes(a, equip_id)
     ultimo = fs[-1] if fs else None
     invs = investigacoes(a, equip_id)
     abertas = [x for x in invs if x["estado"] != "encerrada"]

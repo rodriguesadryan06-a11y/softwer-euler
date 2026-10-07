@@ -126,7 +126,8 @@ def test_diferenca_dentro_da_incerteza_pede_primeiro_confirmar_que_ela_existe():
     assert q["evitavel"]["antes"][0].startswith("Confirmar que a diferença existe")
     q2 = conclusao_financeira(conta(incerteza_consumo_t_t=None))
     assert q2["estado"] == "sem_faixa"
-    assert "falta a incerteza" in q2["evitavel"]["antes"][0]
+    # motivo padronizado (D110): a falta de incerteza declarada, não "dentro da incerteza"
+    assert "sem a incerteza declarada" in q2["evitavel"]["antes"][0]
 
 
 def test_sem_preco_a_conta_nao_aparece_e_a_ponte_nao_e_inventada():

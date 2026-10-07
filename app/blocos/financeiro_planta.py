@@ -10,7 +10,7 @@ from componentes import incerteza_explicada, md
 
 from euler.armazem import ORIGEM_DA_CLASSE
 from euler.conta import conclusao_financeira
-from euler.fechamento import fechamentos
+from euler.fechamento import fechamentos_vigentes
 from euler.formato import num
 from euler.painel import painel, texto_fechamento
 
@@ -145,7 +145,7 @@ def mostrar() -> None:
         if ctx is None:
             return
         _, planta, a, eq = ctx
-        fs = fechamentos(a, eq["id"])
+        fs = fechamentos_vigentes(a, eq["id"])
         if not fs:
             st.info(
                 "Ainda não há conta fechada para este equipamento. Defina a referência e produza o primeiro fechamento."

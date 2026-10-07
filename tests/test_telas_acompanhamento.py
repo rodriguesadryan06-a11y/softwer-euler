@@ -192,3 +192,27 @@ def test_atendimento_da_caldeira_no_historico(raiz):
         )
     finally:
         a.fechar()
+
+
+def test_fechamento_do_mes_pela_tela(raiz):
+    """Fechamento mensal (D111): o mês mostra cobertura e lacuna e é aprovado pela tela."""
+    at = abrir("paginas/acompanhamento.py")
+    at.text_input(key="acomp_autor").set_value("Teste de interface").run()
+    clicar(at, "Criar planta de demonstração (sintética)")
+    ir(at, "paginas/fechamentos.py")
+    t = textos(at)
+    assert "Fechamento do mês" in t
+    assert at.selectbox(key="fech_mes_sel").value == "2026-09"
+    assert "Pronto para fechar" in t
+    assert "Lacuna de 14/09 07:30 a 21/09 07:30" in t
+    assert "não completa o consumo pelo calendário" in t
+    clicar(at, "Aprovar fechamento do mês")
+    assert "Fechamento de setembro/2026 aprovado: 2 trecho(s) gravado(s)" in textos(at)
+    repo = Repositorio(raiz)
+    (planta,) = repo.listar_plantas()
+    a = repo.armazem(planta["id"])
+    try:
+        fs = fechamentos(a, a.equipamentos()[0]["id"])
+        assert [f["resultado"].get("mes") for f in fs] == [None, "2026-09", "2026-09"]
+    finally:
+        a.fechar()

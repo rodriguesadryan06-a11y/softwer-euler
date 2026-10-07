@@ -19,7 +19,7 @@ import pandas as pd
 from euler.acompanhamento import intervencoes, ultima_avaliacao
 from euler.armazem import Armazem
 from euler.conta import FRASE_INCONCLUSIVO, motivo_inconclusivo
-from euler.fechamento import fechamentos
+from euler.fechamento import fechamento, fechamentos_vigentes
 
 
 def _ts(x) -> pd.Timestamp:
@@ -58,9 +58,13 @@ def linha_do_tempo(a: Armazem, equip_id: str, ate_fechamento: int | None = None)
     como era na data dele, sem olhar para frente).
     Valores ausentes ficam None; nada é preenchido.
     """
-    fs = [
-        f for f in fechamentos(a, equip_id) if ate_fechamento is None or f["id"] <= ate_fechamento
-    ]
+    fs = fechamentos_vigentes(a, equip_id)
+    if ate_fechamento is not None:
+        alvo = fechamento(a, ate_fechamento)
+        fs = sorted(
+            [f for f in fs if f["id"] != alvo["id"] and _ts(f["fim"]) <= _ts(alvo["fim"])] + [alvo],
+            key=lambda f: (_ts(f["fim"]), f["id"]),
+        )
     acoes = intervencoes(a, equip_id)
     periodos = []
     for f in fs:
