@@ -59,10 +59,6 @@ def _o_que_falta(falta: list[str]) -> None:
             st.markdown("\n".join(item(o) for o in outros))
 
 
-def _rotulo_periodo(p) -> str:
-    return f"{p[0]:%d/%m} a {p[1]:%d/%m}"
-
-
 def _linha_do_tempo(periodos, ref, comp) -> None:
     """Faixa com todos os períodos: os da referência e os da comparação em destaque."""
     celulas = []
@@ -91,40 +87,66 @@ def _linha_do_tempo(periodos, ref, comp) -> None:
 def _escolher_periodos(periodos):
     """Períodos de referência e de comparação.
 
-    A escolha fica guardada na sessão junto com a assinatura dos dados: ir a outra tela e
-    voltar não troca a comparação em silêncio; dados novos voltam ao padrão. O Streamlit
-    apaga o estado de um controle quando a tela sai de cena; com `key`, o controle é
-    identificado só pela chave, então o valor salvo entra como `value` sem reiniciá-lo.
+    Datas selecionáveis são limites de estoque medidos, sem interpolar registros.
+    A escolha persiste entre telas e é reiniciada quando a assinatura dos dados muda.
     """
     n = len(periodos)
-    rotulos = [_rotulo_periodo(p) for p in periodos]
     ref_fim = max(1, n // 2)
     comp_fim = min(n, ref_fim + 2)
     padrao = {"ref": (0, ref_fim - 1), "comp": (min(ref_fim, n - 1), comp_fim - 1)}
     salvo = st.session_state.get("periodos_escolhidos")
+
+    def intervalo_valido(valor):
+        return (
+            isinstance(valor, (list, tuple))
+            and len(valor) == 2
+            and all(isinstance(i, int) for i in valor)
+            and 0 <= valor[0] <= valor[1] < n
+        )
+
     valido = (
-        salvo is not None
-        and salvo["assinatura"] == estado.assinatura()
-        and max(*salvo["ref"], *salvo["comp"]) < n
+        isinstance(salvo, dict)
+        and salvo.get("assinatura") == estado.assinatura()
+        and all(intervalo_valido(salvo.get(tipo)) for tipo in ("ref", "comp"))
     )
     inicial = salvo if valido else padrao
+    if not valido:
+        for tipo in ("ref", "comp"):
+            for limite in ("inicio", "fim"):
+                st.session_state.pop(f"periodo_{tipo}_{limite}", None)
+
+    def selecionar(coluna, tipo, titulo):
+        with coluna:
+            st.markdown(f"**{titulo}**")
+            inicio = st.selectbox(
+                "Início",
+                options=list(range(n)),
+                index=inicial[tipo][0],
+                key=f"periodo_{tipo}_inicio",
+                format_func=lambda i: periodos[i][0].strftime("%d/%m/%Y %H:%M"),
+            )
+            chave_fim = f"periodo_{tipo}_fim"
+            fim_anterior = st.session_state.get(chave_fim, inicial[tipo][1])
+            ajustado = fim_anterior < inicio
+            if ajustado:
+                st.session_state[chave_fim] = inicio
+            fim = st.selectbox(
+                "Fim",
+                options=list(range(inicio, n)),
+                index=max(inicio, inicial[tipo][1]) - inicio,
+                key=chave_fim,
+                format_func=lambda i: periodos[i][1].strftime("%d/%m/%Y %H:%M"),
+            )
+            if ajustado:
+                st.caption("O fim foi ajustado para a primeira medição após o início escolhido.")
+            return inicio, fim
+
     with cartao("periodos"):
         st.markdown(":material/date_range: **Períodos comparados**")
+        st.caption("Escolha as datas de início e fim. As opções seguem as medições de estoque.")
         c1, c2 = st.columns(2, gap="large")
-        ref = c1.select_slider(
-            "Período de referência (como era)",
-            options=list(range(n)),
-            value=inicial["ref"],
-            key="periodo_ref",
-            format_func=lambda i: rotulos[i],
-        )
-        comp = c2.select_slider(
-            "Período de comparação (como ficou)",
-            options=list(range(n)),
-            value=inicial["comp"],
-            key="periodo_comp",
-            format_func=lambda i: rotulos[i],
-        )
+        ref = selecionar(c1, "ref", "Referência · como era")
+        comp = selecionar(c2, "comp", "Comparação · como ficou")
         _linha_do_tempo(periodos, ref, comp)
     st.session_state["periodos_escolhidos"] = {
         "assinatura": estado.assinatura(),

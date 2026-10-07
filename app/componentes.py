@@ -41,7 +41,9 @@ ESTILO = f"""<style>
   --euler-comp-borda: #6A4A2C;
 }}
 header[data-testid="stHeader"] {{ background: transparent; }}
-.stMainBlockContainer {{ max-width: 1200px; padding-top: 2.4rem; padding-bottom: 3rem; }}
+/* O cabeçalho fixo continua recebendo cliques mesmo transparente (3.75rem).
+   Manter o conteúdo abaixo dele deixa as abas acessíveis em todas as telas. */
+.stMainBlockContainer {{ max-width: 1200px; padding-top: 4.75rem; padding-bottom: 3rem; }}
 /* Hierarquia compacta; informações complementares ficam em expansores. */
 .stMainBlockContainer h2 {{ font-size: 1.35rem; letter-spacing: -.015em; }}
 [data-testid="stMetricValue"] {{ font-variant-numeric: tabular-nums; }}
@@ -52,7 +54,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 a:focus-visible, button:focus-visible, input:focus-visible {{
   outline: 2px solid var(--euler-ref-texto); outline-offset: 3px; }}
 @media(max-width:640px) {{
-  .stMainBlockContainer {{ padding: 3.4rem 1rem 2rem; }} /* espaço para o botão do menu */
+  .stMainBlockContainer {{ padding: 4.75rem 1rem 2rem; }}
   .st-key-cartao-saude-selo {{ padding: 1rem; }}
   .st-key-euler-abertura {{ padding: 1.25rem !important; }}
 }}
