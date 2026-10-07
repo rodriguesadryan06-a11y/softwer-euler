@@ -434,3 +434,18 @@ Pedido do Adryan: continuar as cinco melhorias propostas pelo Codex, começando 
 - Testes: `tests/test_planilha_real.py` (20) com uma planilha de fábrica sintética (título em cima, Data e Hora separadas, kgf/cm², peso em toneladas, valor total) e um teste de tela que importa essa planilha pela interface. Os testes antigos da importação guiada continuam passando sem mudança.
 - Falta: revisar o vocabulário com a primeira planilha real autorizada.
 
+
+## Escala do atendimento, abas por mês e prévia no Painel — 07/10/2026
+
+Pedido do Adryan: "faça os 3 pontos, principalmente o terceiro: descubra com testes quanto tempo levaria para cada cliente, do envio até o primeiro fechamento, para provar a escala".
+
+- **Medição de escala (D109).** `scripts/medir_escala.py` leva cinco clientes sintéticos do envio ao segundo fechamento pelo mesmo caminho das telas (conferência, prévia, confirmação, referência, fechamento) e gera `docs/produto/escala_atendimento.md`. Resultado:
+  - máquina (**medido**): 11 a 14 s por cliente até o primeiro fechamento; 8 a 13 s nos meses seguintes;
+  - ajustes à mão (**contado**): modelo EULER 0, planilha de fábrica 0, mês por aba 0, supervisório 7 (as tags PT-101, TT-102… só a pessoa sabe o que são), abreviações sem unidade 24; no mês seguinte, 0 em todos, menos 12 re-confirmações de unidade no pior caso;
+  - pessoa (**assumido**, rotulado): 4 a 23 min no primeiro envio; 3 a 14 min por mês depois; a medir com o registro de atendimento.
+- **O que o teste encontrou.** Na primeira rodada a planilha de fábrica pedia 11 ajustes, o mês por aba 13 e o supervisório 16; corrigido com regras gerais (D107). Ficaram para decisão: lembrar a unidade junto do mapeamento salvo; e a frase do fechamento quando falta o PCI do laboratório (sem PCI, o mesmo período aparece "acima da referência", porque o efeito do combustível mais úmido não pode ser separado). Também ficou claro que, sem cadastro de instrumentos, o fechamento não classifica a diferença: o cadastro entra na implantação.
+- **Registro de atendimento (T16, D109).** Cada envio confirmado em Minha planta › Dados grava o tempo na tela e os ajustes à mão; em Dados › Histórico › "Atendimento desta caldeira" aparecem o caminho até o primeiro fechamento (calendário, envios, tempo de tela, ajustes) e o lançamento das horas da equipe (dia, tarefa, minutos), com total por mês e `atendimento.csv`. Sem medição aparece "sem medição", nunca zero.
+- **Planilha de fábrica parte 2 (D107).** Várias abas para a mesma tabela (um mês por aba; recebimentos e estoque separados) se juntam; o mesmo registro igual entra uma vez e fica anotado; com valores diferentes, a importação para e mostra as duas abas e linhas. Cabeçalho em duas linhas (células mescladas) vira "Temperaturas · Gases", com a opção na tela.
+- **Prévia no Painel (D108).** Com período completo depois do último fechamento, o Painel mostra "Prévia · ainda não fechado" e se o consumo saiu, voltou ou continua na faixa; a conta é a do fechamento, mas nada é gravado. Na planta de demonstração aparece o período de 14/09 a 21/09, que não pode ser fechado porque o medidor de vapor estava em manutenção (motivo exibido).
+- Testes novos: `tests/test_escala_atendimento.py` (7, cerca de 2 min), `tests/test_atendimento.py` (24), `tests/test_previa_fechamento.py` (10), mais 5 em `tests/test_planilha_real.py`, 1 em `tests/test_tela_importacao_guiada.py` e 1 em `tests/test_telas_acompanhamento.py`. O teste antigo que esperava a recusa de duas fontes na mesma tabela foi atualizado para a regra nova (D107).
+- Falta: medir clientes reais com o registro (o tempo de pessoa só deixa de ser assumido assim); decisões pendentes D107–D109.

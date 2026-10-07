@@ -12,6 +12,7 @@ Execute na raiz do repositório, com o ambiente virtual ativado.
 | `python scripts/prints.py` | Capturas em `prints/` |
 | `python scripts/gravar_video_demo.py` | Vídeo em `demo/video/` |
 | `python scripts/gerar_previa.py` | Prévia em `demo/previa/`; não substitui o aplicativo |
+| `python scripts/medir_escala.py` | Cinco clientes sintéticos do envio ao fechamento → `docs/produto/escala_atendimento.md` (D109) |
 
 As ferramentas visuais e de PDF exigem o extra `prints` e Chromium pelo Playwright;
 o vídeo em MP4 depende também de FFmpeg. Consulte o início de cada script para as opções.

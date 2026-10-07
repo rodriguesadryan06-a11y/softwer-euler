@@ -61,11 +61,15 @@ Preencher logo depois, sem dados do cliente (só contagens e descrições):
 
 ## Limites atuais que vale conferir no teste
 
-Da importação guiada (`docs/desenvolvimento/importacao_financeiro_2026-10-06.md` e D106): uma
-fonte por tabela em cada envio; CSV ou `.xlsx`; não lê PDF de notas nem planilhas de apresentação
-com células mescladas; o mapeamento exige revisão humana. Já reconhece título acima do cabeçalho,
-Data e Hora separadas, nomes comuns de fábrica e unidades como kgf/cm², psi, °F e t/h. Anotar quais
-colunas a EULER não sugeriu sozinha: é o que falta no vocabulário de fábrica. Se a planilha
+Da importação guiada (`docs/desenvolvimento/importacao_financeiro_2026-10-06.md`, D106 e D107):
+CSV ou `.xlsx`; não lê PDF de notas nem planilhas de apresentação (gráficos, quadros soltos); o
+mapeamento exige revisão humana. Já reconhece título acima do cabeçalho, cabeçalho em duas linhas
+(células mescladas), um mês por aba, recebimentos e estoque em abas separadas, Data e Hora
+separadas, nomes comuns de fábrica e unidades como kgf/cm², psi, °F e t/h. Anotar quais colunas a
+EULER não sugeriu sozinha: é o que falta no vocabulário de fábrica. Em Minha planta › Dados ›
+Histórico › "Atendimento desta caldeira" ficam o tempo na tela e os ajustes à mão de cada envio
+(D109): anotar também esses números, que substituem as faixas assumidas de
+`docs/produto/escala_atendimento.md`. Se a planilha
 real esbarrar nesses limites, anotar exatamente como ela é, para virar tarefa.
 
 ## Depois do teste

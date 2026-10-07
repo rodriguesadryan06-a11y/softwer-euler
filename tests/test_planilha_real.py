@@ -240,3 +240,138 @@ def test_resumo_diz_o_que_entrou_o_que_ficou_de_fora_e_o_que_falta():
     faltam = " ".join(r["faltam"])
     assert "temperatura do ar" in faltam and "perda nos gases" in faltam
     assert "temperatura da água de alimentação" in faltam
+
+
+# ------------------------------------------------------------ parte 2 (D107)
+
+
+def planilha_mes_por_aba(cabecalho_duplo: bool = True) -> bytes:
+    """Um mês por aba, cabeçalho em duas linhas (células mescladas) e estoque em aba própria."""
+    wb = Workbook()
+    for i, (aba, dia) in enumerate((("Ago", "31/08/2026"), ("Set", "01/09/2026"))):
+        ws = wb.active if i == 0 else wb.create_sheet(aba)
+        ws.title = aba
+        ws.append([f"Diário da caldeira 1 · {aba}/2026 (sintético)"])
+        if cabecalho_duplo:
+            ws.append(["Data", "Hora", "Temperaturas", "", "", "Pressão vapor (kgf/cm²)"])
+            ws.append(["", "", "Gases (°C)", "Água alimentação (°C)", "Ar (°C)", ""])
+            ws.merge_cells(start_row=2, start_column=3, end_row=2, end_column=5)
+        else:
+            ws.append(["Data", "Hora", "Temp. chaminé (°C)", "Pressão vapor (kgf/cm²)"])
+        for hora, tg in (("08:00", "181"), ("16:00", "184")):
+            linha = (
+                [dia, hora, tg, "105", "28", "8,5"] if cabecalho_duplo else [dia, hora, tg, "8,5"]
+            )
+            ws.append(linha)
+    receb = wb.create_sheet("Entrada de lenha")
+    receb.append(["Data", "Lote", "Peso líquido (t)"])
+    receb.append(["31/08/2026", "L-31", "28,4"])
+    estoque = wb.create_sheet("Estoque do pátio")
+    estoque.append(["Data", "Lote", "Peso líquido (t)"])
+    estoque.append(["31/08/2026", "EST-08", "112"])
+    estoque.append(["30/09/2026", "EST-09", "96"])
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def test_cabecalho_em_duas_linhas_vira_grupo_e_subcoluna():
+    fontes = {f.aba: f for f in ler_fontes({"mensal.xlsx": planilha_mes_por_aba()})}
+    ago = fontes["Ago"]
+    assert ago.cabecalho_duplo and ago.linha_cabecalho == 2
+    assert [c for c in ago.bruto if c != "linha"] == [
+        "Data",
+        "Hora",
+        "Temperaturas · Gases (°C)",
+        "Temperaturas · Água alimentação (°C)",
+        "Temperaturas · Ar (°C)",
+        "Pressão vapor (kgf/cm²)",
+    ]
+    assert ago.bruto["linha"].tolist() == [4, 5]  # linhas do Excel
+    s = sugestoes_detalhadas([c for c in ago.bruto if c != "linha"], "diario")
+    assert s["Temperaturas · Gases (°C)"].alvo == "t_gases_c"
+    assert s["Temperaturas · Água alimentação (°C)"].alvo == "t_agua_alim_c"
+    assert s["Temperaturas · Ar (°C)"].alvo == "t_ar_c"
+    # aba de recebimentos com cabeçalho simples continua simples
+    assert not fontes["Entrada de lenha"].cabecalho_duplo
+
+
+def test_cabecalho_simples_com_titulo_nao_vira_duplo():
+    fontes = {f.aba: f for f in ler_fontes({"caldeira.xlsx": planilha_da_fabrica()})}
+    assert not fontes["Diário caldeira"].cabecalho_duplo
+    f = ler_fontes({"m.xlsx": planilha_mes_por_aba(cabecalho_duplo=False)})[0]
+    assert not f.cabecalho_duplo and f.linha_cabecalho == 2
+
+
+def test_pessoa_pode_desligar_o_cabecalho_duplo():
+    arquivos = {"mensal.xlsx": planilha_mes_por_aba()}
+    f = ler_fontes(arquivos, duplos={"mensal.xlsx::Ago": False})[0]
+    assert not f.cabecalho_duplo
+    assert "Temperaturas" in f.bruto.columns
+
+
+def _decisoes_mensais(arquivos):
+    decisoes = {}
+    for f in ler_fontes(arquivos):
+        if f.aba in {"Ago", "Set"}:
+            tabela, constantes = "diario", {"origem_dado": "sintetico", "caldeira_id": "CALD-1"}
+        else:
+            tipo = "estoque" if "Estoque" in f.aba else "recebimento"
+            tabela, constantes = "combustivel", {"origem_dado": "sintetico", "tipo": tipo}
+        colunas = [c for c in f.bruto if c != "linha"]
+        combinacao = sugerir_combinacao(f, tabela, {})
+        usadas = {combinacao["data"], combinacao["hora"]} if combinacao else set()
+        s = sugestoes_detalhadas([c for c in colunas if c not in usadas], tabela)
+        decisoes[f.chave] = {
+            "tabela": tabela,
+            "mapeamento": {c: x.alvo for c, x in s.items()},
+            "unidades": {c: x.unidade for c, x in s.items() if x.unidade},
+            "constantes": constantes,
+            "linha_cabecalho": f.linha_cabecalho,
+            "cabecalho_duplo": f.cabecalho_duplo,
+            **({"combinar": combinacao} if combinacao else {}),
+        }
+    return decisoes
+
+
+def test_um_mes_por_aba_e_estoque_em_aba_propria_viram_uma_tabela_cada():
+    arquivos = {"mensal.xlsx": planilha_mes_por_aba()}
+    lote = preparar_lote(arquivos, _decisoes_mensais(arquivos))
+    p = importar_pacote(fontes_de_arquivos(lote)[0], p_atm_bar=1.0)
+    diario = p.dados("diario")
+    assert len(diario) == 4
+    assert diario["t_agua_alim_c"].tolist() == [105, 105, 105, 105]
+    comb = p.dados("combustivel")
+    assert sorted(comb["tipo"]) == ["estoque", "estoque", "recebimento"]
+    assert comb.loc[comb["tipo"] == "recebimento", "massa_kg"].tolist() == pytest.approx([28400])
+    m = json.loads(lote["euler_importacao.json"])
+    ad = {a["aba"]: a for a in m["adaptacoes"]}
+    assert ad["Ago"]["linhas_no_adaptado"] == [2, 3]
+    assert ad["Set"]["linhas_no_adaptado"] == [4, 5]
+    assert ad["Set"]["cabecalho_duplo"] is True
+    assert ad["Estoque do pátio"]["linhas_no_adaptado"] == [3, 4]
+
+
+def test_mesmo_registro_em_duas_abas_com_valores_diferentes_para():
+    wb = Workbook()
+    for aba, temp in (("Ago", "181"), ("Ago (cópia)", "190")):
+        ws = wb.active if aba == "Ago" else wb.create_sheet(aba)
+        ws.title = aba
+        ws.append(["Data", "Hora", "Temp. chaminé (°C)"])
+        ws.append(["31/08/2026", "08:00", temp])
+    out = io.BytesIO()
+    wb.save(out)
+    arquivos = {"dup.xlsx": out.getvalue()}
+    decisoes = {
+        f.chave: {
+            "tabela": "diario",
+            "mapeamento": {"Temp. chaminé (°C)": "t_gases_c"},
+            "unidades": {"Temp. chaminé (°C)": "°C"},
+            "constantes": {"origem_dado": "sintetico", "caldeira_id": "CALD-1"},
+            "combinar": {"alvo": "instante_observado", "data": "Data", "hora": "Hora"},
+        }
+        for f in ler_fontes(arquivos)
+    }
+    with pytest.raises(ValueError, match="valores diferentes") as erro:
+        preparar_lote(arquivos, decisoes)
+    assert "Ago (cópia)" in str(erro.value) and "linha 2" in str(erro.value)

@@ -75,3 +75,50 @@ def test_planilha_de_fabrica_com_titulo_entra_pela_tela(tmp_path, monkeypatch):
     salvos = dict(at.session_state["arquivos"])
     assert {"diario.csv", "combustivel.csv", "euler_importacao.json"} <= set(salvos)
     assert b"9.80665" in salvos["diario.csv"] or b"8.33565" in salvos["diario.csv"]
+
+
+def test_mes_por_aba_e_cabecalho_duplo_pela_tela(tmp_path, monkeypatch):
+    """Um mês por aba e cabeçalho em duas linhas (D107): a tela junta as abas e o
+    manifesto guarda o que foi sugerido e o que a pessoa ajustou (T16)."""
+    from test_planilha_real import planilha_mes_por_aba
+
+    from app.importacao_guiada import ajustes_do_lote
+
+    class Planilha(io.BytesIO):
+        name = "mensal.xlsx"
+
+    monkeypatch.setenv("EULER_DADOS_DIR", str(tmp_path / "dados"))
+    conteudo = planilha_mes_por_aba()
+    monkeypatch.setattr(st, "file_uploader", lambda *a, **k: [Planilha(conteudo)])
+    app = Path(__file__).resolve().parents[1] / "app/main.py"
+    at = AppTest.from_file(str(app), default_timeout=90).run()
+    at.switch_page("paginas/importar.py").run()
+    assert not at.exception, at.exception
+    duplos = [c.value for c in at.checkbox if c.label.startswith("Cabeçalho em duas linhas")]
+    assert duplos == [True, True, False, False]
+    assert any("2 fontes vão para" in i.value for i in at.info)
+    tipos = [s.value for s in at.selectbox if s.label == "O que todas as linhas representam?"]
+    assert tipos == ["recebimento", "estoque"]  # pelo nome das abas
+    for s in at.selectbox:
+        if s.label == "Origem de todos os registros desta tabela":
+            s.set_value("sintetico")
+    for t in at.text_input:
+        if t.label.startswith("Código da caldeira"):
+            t.input("CALD-1")
+    at.run()
+    next(c for c in at.checkbox if c.label.startswith("Conferi as colunas")).check().run()
+    clicar(at, "Preparar prévia")
+    clicar(at, "Importar os arquivos enviados")
+    salvos = dict(at.session_state["arquivos"])
+    # nesta tela avulsa não há planta: origem (4 abas) e caldeira (2 abas) são declaradas
+    assert ajustes_do_lote(salvos) == {
+        "tabela": 0,
+        "cabecalho": 0,
+        "data_hora": 0,
+        "colunas": 0,
+        "unidades": 0,
+        "valores_unicos": 6,
+        "total": 6,
+        "fontes": 4,
+    }
+    assert salvos["diario.csv"].count(b"\n") == 5  # cabeçalho + 2 linhas de agosto + 2 de setembro

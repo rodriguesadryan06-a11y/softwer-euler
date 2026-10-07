@@ -30,7 +30,7 @@ Implementação de 06/10/2026. Continuação da organização da interface, com 
 
 ## Limites que permanecem
 
-O guia exige uma fonte por tabela em cada envio e formatos CSV ou `.xlsx`. (Atualizado em 07/10/2026, D106: o cabeçalho pode estar abaixo de títulos, Data e Hora separadas são combinadas e há um vocabulário de fábrica explícito para as sugestões.) Não lê PDF de notas fiscais, não interpreta planilhas de apresentação com células mescladas e não calcula valores ausentes. Arquivos devem respeitar as grandezas disponíveis no contrato. O mapeamento exige revisão humana.
+O guia aceita formatos CSV ou `.xlsx`. (Atualizado em 07/10/2026, D106: o cabeçalho pode estar abaixo de títulos, Data e Hora separadas são combinadas e há um vocabulário de fábrica explícito para as sugestões. D107: várias abas podem ir para a mesma tabela — um mês por aba, recebimentos e estoque separados — e o cabeçalho em duas linhas com células mescladas é lido; o mesmo registro com valores diferentes em duas abas para a importação.) Não lê PDF de notas fiscais, não interpreta planilhas de apresentação (gráficos, quadros soltos) e não calcula valores ausentes. Arquivos devem respeitar as grandezas disponíveis no contrato. O mapeamento exige revisão humana.
 
 O desvio monetizado não demonstra, sozinho, prejuízo recuperável, causa física ou economia. Os critérios científicos e o protocolo proposto de verificação continuam sujeitos à revisão especializada. Os testes desta entrega verificam implementação e preservação de comportamento; não validam um piloto industrial.
 

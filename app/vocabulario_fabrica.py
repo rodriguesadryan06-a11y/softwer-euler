@@ -123,6 +123,12 @@ REGRAS: dict[str, tuple[Regra, ...]] = {
             ("bruto", "tara", "seco", "seca"),
         ),
         Regra("massa_kg", (("massa",),), ("bruto", "tara", "seco", "seca", "especifica")),
+        # estoque medido no pátio (linhas de estoque); volume e limites não são massa
+        Regra(
+            "massa_kg",
+            (("estoque", "estoques", "inventario"),),
+            ("volume", "vol", "m3", "valor", "preco", "minimo", "maximo", "dias"),
+        ),
         Regra("volume_m3", (("volume", "vol"),)),
         Regra("densidade_kg_m3", (("densidade",),)),
         Regra(
@@ -151,7 +157,17 @@ REGRAS: dict[str, tuple[Regra, ...]] = {
         Regra("descricao", (("descricao", "descr", "servico", "atividade"),)),
         Regra("autorizado_por", (("autorizado*", "aprovado*", "responsavel"),)),
     ),
-    "instrumentos": (),
+    "instrumentos": (
+        Regra(
+            "instrumento_id",
+            (("tag", "instrumento", "codigo"),),
+            ("tipo", "incerteza", "unidade", "ponto", "resolucao", "verificacao"),
+        ),
+        Regra("incerteza_declarada", (("incerteza",),), ("tipo", "k", "fator", "abrangencia")),
+        Regra("incerteza_tipo", (("incerteza",), ("tipo",))),
+        Regra("incerteza_k", (("fator", "abrangencia"),)),
+        Regra("ultima_verificacao", (("verificacao", "calibracao"),), ("proxima",)),
+    ),
 }
 
 # Avisos para cabeçalhos que parecem uma grandeza, mas faltam informações para associar.
@@ -216,6 +232,7 @@ _UNIDADES = (
     (re.compile(r"%"), "%"),
     (re.compile(r"\bkg\b"), "kg"),
     (re.compile(r"\(t\)|\bton\b|\btoneladas?\b"), "t"),
+    (re.compile(r"\(s\)|\bsegundos?\b"), "s"),
 )
 
 

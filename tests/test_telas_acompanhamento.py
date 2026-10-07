@@ -89,6 +89,9 @@ def test_ciclo_completo_pelas_telas_com_a_planta_de_demonstracao(raiz):
     assert "Último fechamento" in t
     assert "O que olhar primeiro" in t
     assert any(m.label == "Economia verificada" and m.value == "nenhuma" for m in at.metric)
+    # período completo depois do fechamento: prévia rotulada, sem gravar (D108)
+    assert "Prévia · ainda não fechado" in t
+    assert "Período completo ainda não fechado: 14/09/2026 a 21/09/2026" in t
 
     # o nome digitado continua valendo em outra tela
     ir(at, "paginas/fechamentos.py")
@@ -153,5 +156,39 @@ def test_ciclo_completo_pelas_telas_com_a_planta_de_demonstracao(raiz):
         assert acao["investigacao_id"] == inv["id"]
         assert custos_servico(a, eq)[0]["valor_brl"] == 350.0
         assert precos(a, eq)[0]["preco_brl_t"] == 180.0
+    finally:
+        a.fechar()
+
+
+def test_atendimento_da_caldeira_no_historico(raiz):
+    """Registro de atendimento (T16): caminho até o 1º fechamento e horas da equipe."""
+    at = abrir("paginas/acompanhamento.py")
+    at.text_input(key="acomp_autor").set_value("Equipe EULER").run()
+    clicar(at, "Criar planta de demonstração (sintética)")
+    t = textos(at)
+    assert "Do primeiro envio ao primeiro fechamento" in t
+    # a demonstração é importada sem a tela de conferência: sem medição, não zero
+    assert any(m.label == "Tempo na tela de envio" and m.value == "sem medição" for m in at.metric)
+    assert "1 envio(s) até o primeiro fechamento; 0 com medição da tela" in t
+    assert "Nenhuma hora lançada ainda" in t
+    campo(at.date_input, "Dia").set_value(dt.date(2026, 9, 2))
+    campo(at.selectbox, "Tarefa").set_value("planilha")
+    campo(at.number_input, "Minutos").set_value(40)
+    clicar(at, "Lançar atendimento")
+    assert "Atendimento lançado" in textos(at)
+    assert any(b.label == "Baixar atendimento.csv" for b in at.get("download_button"))
+    repo = Repositorio(raiz)
+    (planta,) = repo.listar_plantas()
+    a = repo.armazem(planta["id"])
+    try:
+        from euler.atendimento import atendimentos_registrados
+
+        (r,) = atendimentos_registrados(a, a.equipamentos()[0]["id"])
+        assert (r["dia"], r["tarefa"], r["minutos"], r["autor"]) == (
+            "2026-09-02",
+            "planilha",
+            40.0,
+            "Equipe EULER",
+        )
     finally:
         a.fechar()

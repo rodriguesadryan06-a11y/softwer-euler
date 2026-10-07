@@ -4,6 +4,7 @@ Envio → prévia → confirmação numa tela só. Os arquivos originais e os re
 entram na mesma transação; nada se duplica e nada é substituído em silêncio.
 """
 
+import time
 from pathlib import Path
 
 import armazenamento as arm
@@ -20,9 +21,15 @@ from acompanhamento_ui import (
     recarregar,
 )
 from componentes import cabecalho, md
-from importacao_guiada import assinatura_envio, guia_importacao
+from importacao_guiada import ajustes_do_lote, assinatura_envio, guia_importacao
 
-from euler.armazem import CLASSES, POLITICAS_CUSTO, cabecalho_csv
+from euler.armazem import CLASSES, POLITICAS_CUSTO, TAREFAS_ATENDIMENTO, cabecalho_csv
+from euler.atendimento import (
+    atendimentos_registrados,
+    csv_atendimento,
+    minutos_por_mes,
+    registro_atendimento,
+)
 from euler.fechamento import (
     criar_referencia,
     precos,
@@ -184,6 +191,10 @@ def novos_dados(repo, planta, a, eq, nome_autor: str) -> None:
     if not brutos:
         st.caption("Envie os arquivos. Nada é gravado antes da sua confirmação.")
         return
+    # Registro de atendimento (T16): relógio da tela, do arquivo recebido à confirmação.
+    inicio = st.session_state.setdefault(
+        f"acomp_inicio_{eq['id']}_{assinatura_envio(brutos, {})[:16]}", time.time()
+    )
     fonte = st.text_input(
         "Nome da fonte (ex.: supervisório, planilha do turno)",
         value="Importação de arquivos",
@@ -309,10 +320,21 @@ def novos_dados(repo, planta, a, eq, nome_autor: str) -> None:
                 width="stretch",
             )
     c1, c2 = st.columns([1, 1])
+
+    def atendimento() -> dict:
+        return {
+            "segundos_na_tela": time.time() - inicio,
+            "ajustes": ajustes_do_lote(brutos) if guiado else None,
+        }
+
     if c1.button("Confirmar registros novos", type="primary") and exigir_autor(nome_autor):
         r = executar(
             lambda: a.confirmar(
-                previa, autor=nome_autor, salvar_perfil=salvar_perfil, importacao_id=importacao_id
+                previa,
+                autor=nome_autor,
+                salvar_perfil=salvar_perfil,
+                importacao_id=importacao_id,
+                atendimento=atendimento(),
             ),
         )
         if r:
@@ -333,7 +355,7 @@ def novos_dados(repo, planta, a, eq, nome_autor: str) -> None:
             r = executar(
                 lambda: a.confirmar(
                     previa, nome_autor, "correcao", motivo, salvar_perfil=salvar_perfil,
-                    importacao_id=importacao_id,
+                    importacao_id=importacao_id, atendimento=atendimento(),
                 ),
             )  # fmt: skip
             if r:
@@ -466,7 +488,7 @@ def configuracao(a, eq, nome_autor: str) -> None:
     )
 
 
-def historico(a, eq) -> None:
+def historico(a, eq, planta, nome_autor: str) -> None:
     lotes = a.importacoes(eq["id"])
     if lotes:
         st.dataframe(
@@ -505,9 +527,96 @@ def historico(a, eq) -> None:
             hide_index=True,
             width="stretch",
         )
-    with st.expander("Indicadores internos de atendimento (só nesta instalação)"):
-        st.caption("Calculados dos registros existentes; nada é coletado à parte nem enviado.")
-        st.json(indicadores_internos(a, eq["id"]))
+    with st.expander("Atendimento desta caldeira (uso interno, só nesta instalação)"):
+        atendimento_interno(a, eq, planta, nome_autor)
+
+
+def _duracao(segundos: float | None) -> str:
+    if segundos is None:
+        return "sem medição"
+    if segundos < 60:
+        return "menos de 1 min"
+    if segundos < 3600:
+        return f"{segundos / 60:.0f} min"
+    return f"{segundos / 3600:.1f} h"
+
+
+def atendimento_interno(a, eq, planta, nome_autor: str) -> None:
+    """Registro de atendimento (T16): o caminho até o 1º fechamento e as horas da equipe."""
+    r = registro_atendimento(a, eq["id"])
+    st.markdown("**Do primeiro envio ao primeiro fechamento** · medido nos registros")
+    c1, c2, c3 = st.columns(3)
+    horas = r["horas_ate_primeiro_fechamento"]
+    c1.metric(
+        "Calendário",
+        "sem fechamento" if horas is None else _duracao(horas * 3600),
+        help="Do primeiro lote importado ao primeiro fechamento, incluindo esperas fora da EULER.",
+    )
+    c2.metric(
+        "Tempo na tela de envio",
+        _duracao(r["segundos_na_tela"]),
+        help="Do arquivo recebido à confirmação, somado nos envios medidos (inclui pausas).",
+    )
+    c3.metric(
+        "Ajustes feitos à mão",
+        "sem medição" if r["ajustes"] is None else str(r["ajustes"]),
+        help="Campos que a pessoa precisou mudar ou preencher na conferência da planilha.",
+    )
+    st.caption(
+        f"{r['envios_ate_fechamento']} envio(s) até o primeiro fechamento; "
+        f"{r['envios_medidos']} com medição da tela"
+        + (
+            f", {r['envios_sem_medicao']} sem medição (anteriores ao registro ou automáticos)."
+            if r["envios_sem_medicao"]
+            else "."
+        )
+    )
+    st.markdown("**Horas da equipe com este cliente** · lançadas por quem atendeu")
+    with st.form(chave_form(f"atendimento_{eq['id']}")):
+        c1, c2, c3 = st.columns([1, 2, 1])
+        dia = c1.date_input("Dia", format="DD/MM/YYYY")
+        tarefa = c2.selectbox(
+            "Tarefa", list(TAREFAS_ATENDIMENTO), format_func=TAREFAS_ATENDIMENTO.get
+        )
+        minutos = c3.number_input("Minutos", min_value=1, max_value=1440, value=None, step=5)
+        nota = st.text_input("Nota (opcional)", max_chars=500)
+        if st.form_submit_button("Lançar atendimento") and exigir_autor(nome_autor):
+            executar(
+                lambda: a.registrar_atendimento(
+                    eq["id"], dia.isoformat() if dia else "", tarefa, minutos, nome_autor, nota
+                ),
+                "Atendimento lançado.",
+                recarregar_tela=True,
+            )
+    registros = atendimentos_registrados(a, eq["id"])
+    if registros:
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Mês": mes,
+                        "Horas": round(m["minutos"] / 60, 2),
+                        **{
+                            TAREFAS_ATENDIMENTO[t]: round(v / 60, 2)
+                            for t, v in m["por_tarefa"].items()
+                        },
+                    }
+                    for mes, m in minutos_por_mes(registros).items()
+                ]
+            ).fillna(0),
+            hide_index=True,
+            width="stretch",
+        )
+        st.download_button(
+            "Baixar atendimento.csv",
+            csv_atendimento(planta["nome"], eq["id"], registros),
+            file_name=f"atendimento_{eq['id']}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.caption("Nenhuma hora lançada ainda: sem lançamento, o total fica sem dado (não zero).")
+    st.caption("Contagens dos registros (nada é coletado à parte nem enviado):")
+    st.json(indicadores_internos(a, eq["id"]), expanded=False)
 
 
 def mostrar() -> None:
@@ -552,7 +661,7 @@ def mostrar() -> None:
         with abas[2]:
             configuracao(a, eq, nome_autor)
         with abas[3]:
-            historico(a, eq)
+            historico(a, eq, planta, nome_autor)
         st.divider()
         c1, c2 = st.columns(2)
         with c1:

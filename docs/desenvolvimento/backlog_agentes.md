@@ -80,9 +80,10 @@ Legenda de status: ☐ a fazer · ◐ em andamento · ☑ pronto (testes passand
 - Telas: (1) Importar e mapear, (2) Dados e limites (capacidades), (3) Investigação, (4) **Extrato por fornecedor**, (5) Relatório.
 - Aceite: fluxo completo com o caso de demonstração em < 5 min, sem ajuda.
 
-**T16 · Registro de horas de atendimento** — P3 ☐ *(novo, métrica de escala)*
+**T16 · Registro de horas de atendimento** — P3 ◐ *(novo, métrica de escala)*
 - Objetivo: tabela simples `atendimento.csv` (cliente, data, tarefa, minutos) + resumo "horas por cliente por mês".
 - Aceite: existe e é usada desde o primeiro piloto.
+- Feito em 07/10/2026 (D109): lançamento das horas em Dados › Histórico, total por mês e `atendimento.csv`; tempo de tela e ajustes à mão medidos em cada envio; caminho até o primeiro fechamento por equipamento; medição de escala com cinco clientes sintéticos (`scripts/medir_escala.py`, `docs/produto/escala_atendimento.md`). Falta: usar desde o primeiro piloto.
 
 ## Bloco 5 · Prova e edital
 

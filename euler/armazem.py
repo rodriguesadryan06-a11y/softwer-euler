@@ -33,7 +33,7 @@ import sqlite3
 import unicodedata
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from math import isfinite
 from pathlib import Path
 
@@ -61,6 +61,14 @@ CLASSES = {
     "cliente_autorizado": "Dados de cliente (autorizados)",
 }
 ORIGEM_DA_CLASSE = {"sintetico": "sintetico", "publico": "publico", "cliente_autorizado": "real"}
+# tarefas do registro de horas de atendimento (T16)
+TAREFAS_ATENDIMENTO = {
+    "implantacao": "Implantação (cadastro, primeira conversa)",
+    "planilha": "Conferência ou ajuste de planilha",
+    "duvida": "Dúvida do cliente",
+    "fechamento": "Revisão do fechamento com o cliente",
+    "outro": "Outro",
+}
 
 # colunas calculadas pelos importadores: não são dado de entrada
 DERIVADAS = {
@@ -588,6 +596,40 @@ class Armazem:
             )
             self._evento(cur, equip_id, "perfil", fonte, "salvo", None, mapeamento)
 
+    # ------------------------------------------------ atendimento (T16)
+    def registrar_atendimento(
+        self,
+        equip_id: str,
+        dia: str,
+        tarefa: str,
+        minutos: float,
+        autor: str,
+        nota: str | None = None,
+    ) -> None:
+        """Tempo da equipe com este equipamento, lançado por quem atendeu (T16).
+
+        Fica no log de eventos (só acrescenta; nada é editado) e não muda a revisão dos
+        dados. `dia` em ISO (AAAA-MM-DD), sem data futura; `minutos` entre 1 e 1440.
+        """
+        self.equipamento(equip_id)
+        if tarefa not in TAREFAS_ATENDIMENTO:
+            raise ErroArmazem("Tarefa de atendimento desconhecida.")
+        if not (autor or "").strip():
+            raise ErroArmazem("Informe quem fez o atendimento.")
+        if isinstance(minutos, bool) or not _finito(minutos) or not 1 <= minutos <= 1440:
+            raise ErroArmazem("Informe os minutos do atendimento (de 1 a 1440).")
+        try:
+            data_atendimento = date.fromisoformat(str(dia)[:10])
+        except ValueError as exc:
+            raise ErroArmazem("Data do atendimento inválida.") from exc
+        if data_atendimento > datetime.now(UTC).date():
+            raise ErroArmazem("A data do atendimento não pode estar no futuro.")
+        dados = {"dia": data_atendimento.isoformat(), "tarefa": tarefa, "minutos": float(minutos)}
+        if (nota or "").strip():
+            dados["nota"] = nota.strip()[:500]
+        with self._transacao() as cur:
+            self._evento(cur, equip_id, "atendimento", dados["dia"], "registrado", autor, dados)
+
     def perfil(self, equip_id: str, fonte: str) -> dict[str, str] | None:
         r = self.con.execute(
             "SELECT mapeamento FROM perfil WHERE equipamento_id=? AND fonte=?", (equip_id, fonte)
@@ -904,11 +946,17 @@ class Armazem:
         motivo: str | None = None,
         salvar_perfil: bool = False,
         importacao_id: str | None = None,
+        atendimento: dict | None = None,
     ) -> dict:
         """Grava a prévia. Incremental: novas entram, iguais são ignoradas, conflitos ficam
-        pendentes. Correção: conflitos viram nova versão, com motivo e autor obrigatórios."""
+        pendentes. Correção: conflitos viram nova versão, com motivo e autor obrigatórios.
+
+        `atendimento` (T16, opcional): o que a tela mediu neste envio, guardado no lote e no
+        evento: {"segundos_na_tela": s, "ajustes": {...} ou None}. Sem medição, nada é gravado
+        (ausente não vira zero)."""
         if modo not in ("incremental", "correcao"):
             raise ErroArmazem("Modo de importação desconhecido.")
+        atendimento = _validar_atendimento(atendimento)
         if not (autor or "").strip():
             raise ErroArmazem("Informe quem está importando.")
         if modo == "correcao" and not (motivo or "").strip():
@@ -916,6 +964,8 @@ class Armazem:
         from euler.persistencia import Repositorio
 
         resumo = {"contagem": previa.contagem(), "tabelas_bloqueadas": previa.tabelas_bloqueadas}
+        if atendimento:
+            resumo["atendimento"] = atendimento
         e = previa.equipamento_id
         with self._transacao() as cur:
             if previa.planta_id != self.info["planta_id"]:
@@ -1201,6 +1251,28 @@ POLITICAS_CUSTO = {
         "Preço vigente na tabela de preços cadastrada (com custos adicionais declarados)."
     ),
 }
+
+
+def _validar_atendimento(atendimento: dict | None) -> dict | None:
+    """Medição do atendimento (T16): só campos conhecidos, números finitos e não negativos."""
+    if not atendimento:
+        return None
+    if set(atendimento) - {"segundos_na_tela", "ajustes"}:
+        raise ErroArmazem("Registro de atendimento com campo desconhecido.")
+    out = {}
+    s = atendimento.get("segundos_na_tela")
+    if s is not None:
+        if isinstance(s, bool) or not _finito(s) or float(s) < 0:
+            raise ErroArmazem("Tempo de atendimento inválido.")
+        out["segundos_na_tela"] = round(float(s), 1)
+    ajustes = atendimento.get("ajustes")
+    if ajustes is not None:
+        if not isinstance(ajustes, dict) or any(
+            not isinstance(v, int) or isinstance(v, bool) or v < 0 for v in ajustes.values()
+        ):
+            raise ErroArmazem("Contagem de ajustes inválida.")
+        out["ajustes"] = {str(k): int(v) for k, v in ajustes.items()}
+    return out or None
 
 
 def _finito(x) -> bool:

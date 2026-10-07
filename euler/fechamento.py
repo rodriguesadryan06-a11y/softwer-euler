@@ -628,6 +628,105 @@ def _comparar_com_anterior(nucleo: dict, anterior: dict | None) -> dict:
     }
 
 
+def _periodo_a_fechar(a: Armazem, equip_id: str) -> tuple:
+    """(início, fim) que o próximo fechamento cobre: os períodos completos ainda não fechados."""
+    pendentes = periodos_pendentes(a, equip_id)
+    if not pendentes:
+        raise ErroArmazem(
+            "Sem período novo completo (entre medições de estoque) desde o último "
+            "fechamento: o acompanhamento não tem dados novos para fechar."
+        )
+    # períodos válidos consecutivos; um período inválido no início é fechado sozinho,
+    # para a lacuna ficar registrada com o motivo (nunca pulada em silêncio)
+    validos = sequencia_valida(pendentes) or pendentes[:1]
+    return validos[0]["inicio"], validos[-1]["fim"]
+
+
+_FORA_DA_FAIXA = {"acima", "abaixo"}
+
+
+def mudanca_de_situacao(antes: str | None, novo: str | None) -> str:
+    """Como a situação do período novo se compara à do último fechamento (D108).
+
+    "saiu_da_faixa": de dentro da incerteza para acima/abaixo (estabelecido);
+    "voltou_a_faixa": o contrário; "continua": a mesma situação; "indefinida": sem
+    situação de um dos lados, sem faixa, referência diferente ou troca de acima por abaixo.
+    """
+    if antes is None or novo is None or "sem_faixa" in (antes, novo):
+        return "indefinida"
+    if antes == novo:
+        return "continua"
+    if novo in _FORA_DA_FAIXA and antes not in _FORA_DA_FAIXA:
+        return "saiu_da_faixa"
+    if antes in _FORA_DA_FAIXA and novo not in _FORA_DA_FAIXA:
+        return "voltou_a_faixa"
+    return "indefinida"
+
+
+def previa_do_proximo_fechamento(a: Armazem, equip_id: str) -> dict | None:
+    """Prévia, sem gravar nada, do período completo novo desde o último fechamento (D108).
+
+    Usa a mesma conta do fechamento (`_nucleo`) para o período que `produzir_fechamento`
+    fecharia agora, e compara a situação com a do último fechamento. Nada entra no
+    histórico; a prévia não substitui o fechamento. None quando ainda não há fechamento,
+    referência ou período novo completo. Se a referência teve os dados alterados, devolve
+    só o motivo (a conta não é feita).
+
+    Saída: inicio, fim (ISO), situacao, situacao_frase, anterior (situação do último
+    fechamento), mudanca ("saiu_da_faixa", "voltou_a_faixa", "continua" ou "indefinida"),
+    frase (texto curto para o Painel) e revisao_dados.
+    """
+    ref = referencia_vigente(a, equip_id)
+    anteriores = fechamentos(a, equip_id)
+    pendentes = periodos_pendentes(a, equip_id) if ref and anteriores else []
+    if not pendentes:
+        return None
+    original_sha = ref["dados"].get("dados_referencia_sha") or _dados_referencia_sha(
+        a, equip_id, ref["fim"], ref["revisao"]
+    )
+    if _dados_referencia_sha(a, equip_id, ref["fim"]) != original_sha:
+        return {"motivo": "Os dados da referência foram alterados: a prévia não é calculada."}
+    validos = sequencia_valida(pendentes) or pendentes[:1]
+    inicio, fim = _ts(validos[0]["inicio"]), _ts(validos[-1]["fim"])
+    revisao = a.revisao
+    if not validos[0]["valido"]:
+        frase = f"A conta deste período não pode ser feita: {validos[0]['motivo']}"
+        return {
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "situacao": None,
+            "situacao_frase": frase,
+            "anterior": anteriores[-1]["resultado"]["situacao"],
+            "mudanca": "indefinida",
+            "frase": frase,
+            "revisao_dados": revisao,
+        }
+    pacote = a.pacote(equip_id, revisao=revisao, p_atm_bar=p_atm(a, equip_id))
+    politica = a.equipamento(equip_id)["config"]["politica_custo"]
+    nucleo = _nucleo(a, equip_id, pacote, ref, inicio, fim, politica)
+    novo = _situacao(nucleo)
+    ultimo = anteriores[-1]
+    antes = ultimo["resultado"]["situacao"] if ultimo["referencia_id"] == ref["id"] else None
+    mudanca = mudanca_de_situacao(antes, novo)
+    situacao_frase = SITUACAO.get(novo, "Conta indisponível neste período.")
+    frase = {
+        "saiu_da_faixa": "Pela prévia, o consumo saiu da faixa da referência. ",
+        "voltou_a_faixa": "Pela prévia, o consumo voltou para dentro da faixa da referência. ",
+        "continua": "Pela prévia, a situação continua a mesma do último fechamento. ",
+        "indefinida": "",
+    }[mudanca] + situacao_frase
+    return {
+        "inicio": inicio.isoformat(),
+        "fim": fim.isoformat(),
+        "situacao": novo,
+        "situacao_frase": situacao_frase,
+        "anterior": antes,
+        "mudanca": mudanca,
+        "frase": frase,
+        "revisao_dados": revisao,
+    }
+
+
 def produzir_fechamento(
     a: Armazem,
     equip_id: str,
@@ -649,16 +748,7 @@ def produzir_fechamento(
             "Os dados da referência foram alterados. Registre uma nova versão da referência com motivo antes de fechar outro período."
         )
     if inicio is None or fim is None:
-        pendentes = periodos_pendentes(a, equip_id)
-        if not pendentes:
-            raise ErroArmazem(
-                "Sem período novo completo (entre medições de estoque) desde o último "
-                "fechamento: o acompanhamento não tem dados novos para fechar."
-            )
-        # períodos válidos consecutivos; um período inválido no início é fechado sozinho,
-        # para a lacuna ficar registrada com o motivo (nunca pulada em silêncio)
-        validos = sequencia_valida(pendentes) or pendentes[:1]
-        inicio, fim = validos[0]["inicio"], validos[-1]["fim"]
+        inicio, fim = _periodo_a_fechar(a, equip_id)
     inicio, fim = _ts(inicio), _ts(fim)
     revisao = a.revisao
     politica = a.equipamento(equip_id)["config"]["politica_custo"]

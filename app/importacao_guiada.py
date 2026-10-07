@@ -39,6 +39,8 @@ class FonteGuiada:
     virgula_decimal: bool
     linha_cabecalho: int = 1
     """Linha do cabeçalho no arquivo original (1 = primeira linha)."""
+    cabecalho_duplo: bool = False
+    """Cabeçalho em duas linhas (grupo em cima, subcolunas embaixo, como em células mescladas)."""
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,52 @@ def detectar_cabecalho(linhas: list[list[str]]) -> int:
     return 0
 
 
+def _so_texto(valores: list[str]) -> bool:
+    return bool(valores) and not any(_NUMERO_OU_DATA.match(v) for v in valores)
+
+
+def _par_de_cabecalho(cima: list, baixo: list) -> bool:
+    """Grupo em cima e subcolunas embaixo, como as células mescladas do Excel deixam.
+
+    Exige: duas linhas só com textos, cada uma com 2+ células, e subcolunas embaixo de
+    células vazias de cima que tenham um grupo à esquerda (a parte mesclada do grupo).
+    """
+    c = [str(v).strip() for v in cima]
+    b = [str(v).strip() for v in baixo]
+    fc = {j for j, v in enumerate(c) if v}
+    fb = {j for j, v in enumerate(b) if v}
+    if len(fc) < 2 or len(fb) < 2:
+        return False
+    if not (_so_texto([c[j] for j in fc]) and _so_texto([b[j] for j in fb])):
+        return False
+    sob_grupo = [j for j in fb - fc if any(k < j for k in fc)]
+    return bool(sob_grupo)
+
+
+def localizar_cabecalho(linhas: list[list[str]]) -> tuple[int, bool]:
+    """(índice da primeira linha do cabeçalho, se ele ocupa duas linhas)."""
+    i = detectar_cabecalho(linhas)
+    if i > 0 and _par_de_cabecalho(linhas[i - 1], linhas[i]):
+        return i - 1, True
+    if i + 1 < len(linhas) and _par_de_cabecalho(linhas[i], linhas[i + 1]):
+        return i, True
+    return i, False
+
+
+def juntar_cabecalho_duplo(cima: list, baixo: list) -> list[str]:
+    """'Temperaturas' (mesclada sobre 3 colunas) + 'Gases' → 'Temperaturas · Gases'."""
+    largura = max(len(cima), len(baixo))
+    c = [str(v).strip() for v in cima] + [""] * (largura - len(cima))
+    b = [str(v).strip() for v in baixo] + [""] * (largura - len(baixo))
+    nomes, grupo = [], ""
+    for j in range(largura):
+        if c[j]:
+            grupo = c[j]
+        topo = c[j] or (grupo if b[j] else "")
+        nomes.append(" · ".join(x for x in (topo, b[j]) if x))
+    return nomes
+
+
 def _nomear_colunas(cabecalho: list[str], dados: list[list[str]]) -> tuple[list[str], list[int]]:
     """Nomes do cabeçalho; colunas sem nome e com dados recebem nome visível; vazias saem."""
     nomes, indices = [], []
@@ -129,15 +177,18 @@ def _decodificar(conteudo: bytes) -> str:
 
 
 def ler_fontes(
-    arquivos: dict[str, bytes], cabecalhos: dict[str, int] | None = None
+    arquivos: dict[str, bytes],
+    cabecalhos: dict[str, int] | None = None,
+    duplos: dict[str, bool] | None = None,
 ) -> list[FonteGuiada]:
     """Lê qualquer nome de arquivo/aba, texto intacto.
 
-    O cabeçalho é detectado (`detectar_cabecalho`) ou informado em `cabecalhos`
-    ({chave da fonte: linha do cabeçalho, 1 = primeira}). A coluna `linha` guarda o número
-    da linha no arquivo original.
+    O cabeçalho é detectado (`localizar_cabecalho`) ou informado em `cabecalhos`
+    ({chave da fonte: linha do cabeçalho, 1 = primeira}) e `duplos` ({chave: True se o
+    cabeçalho ocupa duas linhas}). A coluna `linha` guarda o número da linha no original.
     """
     cabecalhos = cabecalhos or {}
+    duplos = duplos or {}
     fontes = []
     for nome, conteudo in arquivos.items():
         if nome.lower().endswith(".csv"):
@@ -146,16 +197,22 @@ def ler_fontes(
             amostra = "\n".join(linhas_texto[:30])
             sep = ";" if amostra.count(";") > amostra.count(",") else ","
             linhas = list(csv.reader(io.StringIO(amostra), delimiter=sep))
-            h = cabecalhos.get(nome, detectar_cabecalho(linhas) + 1) - 1
+            h_auto, duplo_auto = localizar_cabecalho(linhas)
+            h = cabecalhos.get(nome, h_auto + 1) - 1
+            duplo = duplos.get(nome, duplo_auto if nome not in cabecalhos else False)
             if not 0 <= h < max(len(linhas_texto), 1):
                 raise ValueError(f"{nome}: a linha do cabeçalho está fora do arquivo.")
             linha_cab = linhas_texto[h] if linhas_texto else ""
             sep = ";" if linha_cab.count(";") > linha_cab.count(",") else ","
             cab = [c.strip() for c in next(csv.reader(io.StringIO(linha_cab), delimiter=sep), [])]
-            resto = list(csv.reader(io.StringIO("\n".join(linhas_texto[h + 1 :])), delimiter=sep))
+            if duplo and h + 1 < len(linhas_texto):
+                sub = next(csv.reader(io.StringIO(linhas_texto[h + 1]), delimiter=sep), [])
+                cab = juntar_cabecalho_duplo(cab, sub)
+            pula = h + (2 if duplo else 1)
+            resto = list(csv.reader(io.StringIO("\n".join(linhas_texto[pula:])), delimiter=sep))
             nomes, indices = _nomear_colunas(cab, resto)
             _validar_cabecalho(nomes, nome)
-            if h == 0 and nomes == cab:
+            if h == 0 and not duplo and nomes == cab:
                 df, virgula, avisos = ler_csv(conteudo, nome)
                 if any(a.tipo in {"colunas_a_mais", "arquivo_vazio"} for a in avisos):
                     raise ValueError(
@@ -163,7 +220,7 @@ def ler_fontes(
                     )
             else:
                 registros = []
-                for k, valores in enumerate(resto, start=h + 2):
+                for k, valores in enumerate(resto, start=pula + 1):
                     if not any(v.strip() for v in valores):
                         continue
                     if len(valores) > len(cab) and any(v.strip() for v in valores[len(cab) :]):
@@ -182,7 +239,7 @@ def ler_fontes(
                     )
                 df = pd.DataFrame(registros, columns=["linha", *nomes])
                 virgula = sep == ";"
-            fontes.append(FonteGuiada(nome, nome, None, df, virgula, h + 1))
+            fontes.append(FonteGuiada(nome, nome, None, df, virgula, h + 1, duplo))
         elif nome.lower().endswith(".xlsx"):
             try:
                 abas = pd.read_excel(
@@ -202,18 +259,23 @@ def ler_fontes(
                 chave = f"{nome}::{aba}"
                 bruto = bruto.fillna("").astype(str)
                 linhas = bruto.values.tolist()
-                h = cabecalhos.get(chave, detectar_cabecalho(linhas) + 1) - 1
+                h_auto, duplo_auto = localizar_cabecalho(linhas)
+                h = cabecalhos.get(chave, h_auto + 1) - 1
+                duplo = duplos.get(chave, duplo_auto if chave not in cabecalhos else False)
                 if not 0 <= h < len(linhas):
                     raise ValueError(f"{nome} · {aba}: a linha do cabeçalho está fora da aba.")
                 cab = [str(v).strip() for v in linhas[h]]
-                nomes, indices = _nomear_colunas(cab, linhas[h + 1 :])
+                if duplo and h + 1 < len(linhas):
+                    cab = juntar_cabecalho_duplo(cab, linhas[h + 1])
+                pula = h + (2 if duplo else 1)
+                nomes, indices = _nomear_colunas(cab, linhas[pula:])
                 _validar_cabecalho(nomes, f"{nome} · {aba}")
-                df = bruto.iloc[h + 1 :, indices].copy()
+                df = bruto.iloc[pula:, indices].copy()
                 df.columns = nomes
                 df.insert(0, "linha", df.index + 1)
                 df = df[df[nomes].apply(lambda r: any(v.strip() for v in r), axis=1)]
                 fontes.append(
-                    FonteGuiada(chave, nome, aba, df.reset_index(drop=True), False, h + 1)
+                    FonteGuiada(chave, nome, aba, df.reset_index(drop=True), False, h + 1, duplo)
                 )
     if not fontes:
         raise ValueError(
@@ -233,6 +295,8 @@ def _unidade(coluna: str, alvo: str, tabela: str) -> str | None:
     col = TABELAS[tabela].coluna(alvo)
     if col.tipo != "numero":
         return None
+    if col.unidade in {"contagem", "na unidade do instrumento", "—"}:
+        return col.unidade  # contagem e unidade do próprio instrumento: nada a converter
     opcoes = list(unidades_permitidas(col))
     explicita = coluna == alvo or ALIASES_COLUNAS.get(coluna) == alvo
     return col.unidade if explicita else unidade_sugerida(coluna, col.unidade, opcoes)
@@ -384,19 +448,24 @@ def sugerir_combinacao(fonte: FonteGuiada, tabela: str, mapa: dict) -> dict | No
     """Data e Hora em colunas separadas para o instante obrigatório da tabela, se faltar.
 
     Exige uma coluna "Data" cujos valores são datas sem hora e uma "Hora" cujos valores são
-    horas. Fora disso, nada é sugerido.
+    horas. Se a "Data" já foi associada sozinha ao instante (a coluna de combustível também
+    se chama "data"), a junção ainda é sugerida: sem ela, a hora ao lado se perderia.
+    Fora disso, nada é sugerido.
     """
     alvo = next(
         (c.nome for c in TABELAS[tabela].colunas if c.tipo == "instante" and c.obrigatoria), None
     )
-    if alvo is None or alvo in mapa.values():
+    if alvo is None:
         return None
-    colunas = [c for c in fonte.bruto if c != "linha" and c not in mapa]
 
     def todas(coluna, teste) -> bool:
         valores = _amostra(fonte.bruto[coluna])
         return bool(valores) and all(teste(v) for v in valores)
 
+    ja = [c for c, a in mapa.items() if a == alvo]
+    if ja and (len(ja) > 1 or not todas(ja[0], _so_data)):
+        return None
+    colunas = [c for c in fonte.bruto if c != "linha" and (c not in mapa or c in ja)]
     datas = [c for c in colunas if {"data", "dia"} & set(termos(c)) and todas(c, _so_data)]
     horas = [c for c in colunas if {"hora", "horario"} & set(termos(c)) and todas(c, _so_hora)]
     if len(datas) == 1 and len(horas) == 1:
@@ -447,25 +516,26 @@ _MARCAS_AUSENTE = {"-", "--", "nan", "na", "n/a", "s/d", "sd", "null", "none"}
 def preparar_lote(arquivos: dict[str, bytes], decisoes: dict) -> dict[str, bytes]:
     """Produz CSVs do contrato e trilha auditável. Ausentes continuam vazios.
 
-    Cada tabela recebe uma única fonte; não escolhe entre fontes sobrepostas.
+    Várias fontes da mesma tabela (um mês por aba, recebimentos e estoques em abas
+    separadas) são juntadas na ordem em que chegaram (D107). O mesmo registro em duas
+    fontes: se igual, entra uma vez (anotado no manifesto); se diferente, nada é
+    escolhido e a importação para com o nome das duas fontes e das linhas.
     Constantes são declarações do usuário, apenas em colunas não existentes.
     """
     saida: dict[str, bytes] = {}
     adaptacoes = []
+    partes: dict[str, list] = {}
     cabecalhos = {
         k: int(d["linha_cabecalho"]) for k, d in decisoes.items() if d.get("linha_cabecalho")
     }
-    for fonte in ler_fontes(arquivos, cabecalhos):
+    duplos = {k: bool(d["cabecalho_duplo"]) for k, d in decisoes.items() if "cabecalho_duplo" in d}
+    for fonte in ler_fontes(arquivos, cabecalhos, duplos):
         escolha = decisoes.get(fonte.chave, {})
         tabela = escolha.get("tabela")
         if not tabela:
             continue
         contrato = TABELAS[tabela]
         destino = contrato.arquivo
-        if destino in saida:
-            raise ValueError(
-                "Duas fontes apontam para a mesma tabela. Envie um conjunto por tabela."
-            )
         mapa = escolha.get("mapeamento", {})
         unidades = escolha.get("unidades", {})
         constantes = escolha.get("constantes", {})
@@ -544,24 +614,29 @@ def preparar_lote(arquivos: dict[str, bytes], decisoes: dict) -> dict[str, bytes
             raise ValueError(
                 f"{contrato.titulo}: associe as colunas obrigatórias: {', '.join(faltam)}."
             )
-        saida[destino] = df.to_csv(index=False, lineterminator="\n").encode("utf-8")
         usadas = set(mapa) | ({combinar["data"], combinar["hora"]} if combinar else set())
-        adaptacoes.append(
-            {
-                "fonte": fonte.chave,
-                "arquivo": fonte.arquivo,
-                "aba": fonte.aba,
-                "tabela": tabela,
-                "linha_cabecalho": fonte.linha_cabecalho,
-                "mapeamento": mapa,
-                "unidades": unidades,
-                "constantes": constantes,
-                **({"combinar": combinar} if combinar else {}),
-                "linhas_originais": fonte.bruto["linha"].tolist(),
-                "colunas_nao_usadas": [c for c in fonte.bruto if c != "linha" and c not in usadas],
-                "sha256_adaptado": hashlib.sha256(saida[destino]).hexdigest(),
-            }
-        )
+        adaptacao = {
+            "fonte": fonte.chave,
+            "arquivo": fonte.arquivo,
+            "aba": fonte.aba,
+            "tabela": tabela,
+            "linha_cabecalho": fonte.linha_cabecalho,
+            **({"cabecalho_duplo": True} if fonte.cabecalho_duplo else {}),
+            "mapeamento": mapa,
+            "unidades": unidades,
+            "constantes": constantes,
+            **({"combinar": combinar} if combinar else {}),
+            **({"sugerido": escolha["sugerido"]} if escolha.get("sugerido") else {}),
+            "linhas_originais": fonte.bruto["linha"].tolist(),
+            "colunas_nao_usadas": [c for c in fonte.bruto if c != "linha" and c not in usadas],
+        }
+        partes.setdefault(destino, []).append((fonte, df, adaptacao))
+    for destino, lista in partes.items():
+        junto = _juntar_fontes(TABELAS[lista[0][2]["tabela"]], lista)
+        saida[destino] = junto.to_csv(index=False, lineterminator="\n").encode("utf-8")
+        for _, _, adaptacao in lista:
+            adaptacao["sha256_adaptado"] = hashlib.sha256(saida[destino]).hexdigest()
+            adaptacoes.append(adaptacao)
     if not adaptacoes:
         raise ValueError("Selecione ao menos uma tabela para analisar.")
     originais = []
@@ -585,6 +660,175 @@ def preparar_lote(arquivos: dict[str, bytes], decisoes: dict) -> dict[str, bytes
         indent=2,
     ).encode("utf-8")
     return saida
+
+
+def _juntar_fontes(contrato, lista: list) -> pd.DataFrame:
+    """Junta as fontes de uma tabela; registra em cada adaptação as linhas que ocupou."""
+    if len(lista) == 1:
+        _, df, adaptacao = lista[0]
+        adaptacao["linhas_no_adaptado"] = [2, len(df) + 1]
+        return df
+    colunas = list(dict.fromkeys(c for _, df, _ in lista for c in df.columns))
+    vistos: dict[tuple, tuple] = {}
+    blocos, proxima = [], 2
+    for fonte, df, adaptacao in lista:
+        df = df.reindex(columns=colunas).fillna("")
+        manter, repetidas = [], []
+        for idx, linha in df.iterrows():
+            chave = tuple(str(linha.get(c, "")).strip() for c in contrato.chave)
+            conteudo = tuple(str(v).strip() for v in linha.tolist())
+            original = int(fonte.bruto.loc[idx, "linha"])
+            if all(chave) and chave in vistos and vistos[chave][0] != fonte.chave:
+                outra_fonte, outra_linha, outro_conteudo = vistos[chave]
+                if outro_conteudo == conteudo:
+                    repetidas.append(original)
+                    continue
+                raise ValueError(
+                    f"{contrato.titulo}: o mesmo registro ({' · '.join(chave)}) aparece em "
+                    f"“{outra_fonte}” (linha {outra_linha}) e em “{fonte.chave}” (linha "
+                    f"{original}) com valores diferentes. Confira qual vale; a EULER não "
+                    "escolhe sozinha."
+                )
+            if all(chave):
+                vistos.setdefault(chave, (fonte.chave, original, conteudo))
+            manter.append(idx)
+        bloco = df.loc[manter]
+        adaptacao["linhas_no_adaptado"] = [proxima, proxima + len(bloco) - 1]
+        if repetidas:
+            adaptacao["repetidas_iguais_entraram_uma_vez"] = repetidas
+        proxima += len(bloco)
+        blocos.append(bloco)
+    return pd.concat(blocos, ignore_index=True)
+
+
+# ------------------------------------------------------------ o que a tela já traz preenchido (T16)
+
+
+_TIPO_PELO_NOME = {
+    "recebimento": {"recebimento", "recebimentos", "entrada", "entradas", "compra", "compras"},
+    "estoque": {"estoque", "estoques", "inventario"},
+}
+
+
+def sugerir_tipo(fonte: FonteGuiada) -> str | None:
+    """Tipo dos registros de combustível pelo nome da aba ou do arquivo, se inequívoco."""
+    palavras = set(termos(fonte.aba or Path(fonte.arquivo).stem))
+    achados = [t for t, nomes in _TIPO_PELO_NOME.items() if nomes & palavras]
+    return achados[0] if len(achados) == 1 else None
+
+
+def valores_unicos_da_tela(tabela: str, mapa: dict, colunas: list[str]) -> list[str]:
+    """Valores únicos que a tela pede para a tabela, dada a associação das colunas."""
+    nomes = {c.nome for c in TABELAS[tabela].colunas}
+    tem_origem = any(_normal(c) in {"origem dado", "origem do dado"} for c in colunas)
+    pede = []
+    if "caldeira_id" in nomes and "caldeira_id" not in mapa.values():
+        pede.append("caldeira_id")
+    if "origem_dado" in nomes and "origem_dado" not in mapa.values() and not tem_origem:
+        pede.append("origem_dado")
+    if tabela == "combustivel" and "tipo" not in mapa.values():
+        pede.append("tipo")
+    return pede
+
+
+def sugestao_da_fonte(
+    fonte: FonteGuiada,
+    tabela: str | None = None,
+    *,
+    salvo: dict | None = None,
+    origem: str | None = None,
+    caldeira: str | None = None,
+) -> dict:
+    """O que a tela de conferência traz preenchido para esta fonte, no formato das decisões.
+
+    `tabela` é a tabela escolhida pela pessoa (as associações sugeridas dependem dela); o
+    campo "tabela" do resultado é sempre a tabela que a EULER sugeriu. Valores únicos que a
+    tela não preenche (o tipo dos registros de combustível, a origem quando a planta não a
+    define) aparecem vazios: a pessoa precisa declarar.
+    """
+    sugerida = sugerir_tabela(fonte)
+    alvo_tabela = tabela or sugerida
+    base = {
+        "tabela": sugerida,
+        "linha_cabecalho": fonte.linha_cabecalho,
+        "cabecalho_duplo": fonte.cabecalho_duplo,
+    }
+    if not alvo_tabela:
+        return {**base, "mapeamento": {}, "unidades": {}, "constantes": {}}
+    colunas = [c for c in fonte.bruto if c != "linha"]
+    combinacao = sugerir_combinacao(
+        fonte, alvo_tabela, sugerir_mapeamento(colunas, alvo_tabela, salvo)
+    )
+    usadas = {combinacao["data"], combinacao["hora"]} if combinacao else set()
+    s = sugestoes_detalhadas([c for c in colunas if c not in usadas], alvo_tabela, salvo)
+    mapa = {c: x.alvo for c, x in s.items()}
+    padrao = {
+        "caldeira_id": caldeira or "",
+        "origem_dado": origem if origem in {"real", "publico", "sintetico"} else "",
+        "tipo": sugerir_tipo(fonte) or "",
+    }
+    constantes = {k: padrao[k] for k in valores_unicos_da_tela(alvo_tabela, mapa, colunas)}
+    return {
+        **base,
+        "mapeamento": mapa,
+        "unidades": {c: x.unidade for c, x in s.items() if x.unidade},
+        "constantes": constantes,
+        **({"combinar": combinacao} if combinacao else {}),
+    }
+
+
+def contar_ajustes(final: dict, sugerido: dict) -> dict[str, int]:
+    """Quantas escolhas da pessoa diferem do que a tela já trazia preenchido (T16).
+
+    Cada campo alterado ou preenchido conta 1: a tabela, a linha e a forma do cabeçalho, a
+    junção Data + Hora, a associação de cada coluna, a unidade de cada coluna numérica (em
+    comparação com a unidade que a tela mostra para a coluna escolhida) e cada valor único
+    declarado. `sugerido` deve ter sido calculado para a tabela final (`sugestao_da_fonte`).
+    """
+    tabela = final.get("tabela")
+    mapa_f, mapa_s = final.get("mapeamento", {}), sugerido.get("mapeamento", {})
+    const_f, const_s = final.get("constantes", {}), sugerido.get("constantes", {})
+    unidades = 0
+    for coluna, alvo in mapa_f.items():
+        if tabela and TABELAS[tabela].coluna(alvo).tipo == "numero":
+            unidades += int(final.get("unidades", {}).get(coluna) != _unidade(coluna, alvo, tabela))
+    detalhe = {
+        "tabela": int(tabela != sugerido.get("tabela")),
+        "cabecalho": int(
+            int(final.get("linha_cabecalho") or 1) != int(sugerido.get("linha_cabecalho") or 1)
+        )
+        + int(bool(final.get("cabecalho_duplo")) != bool(sugerido.get("cabecalho_duplo"))),
+        "data_hora": int((final.get("combinar") or None) != (sugerido.get("combinar") or None)),
+        "colunas": sum(
+            int(mapa_f.get(c) != mapa_s.get(c)) for c in dict.fromkeys([*mapa_s, *mapa_f])
+        ),
+        "unidades": unidades,
+        "valores_unicos": sum(
+            int((const_f.get(k) or "") != (const_s.get(k) or ""))
+            for k in dict.fromkeys([*const_s, *const_f])
+        ),
+    }
+    return {**detalhe, "total": sum(detalhe.values())}
+
+
+def ajustes_do_lote(lote: dict[str, bytes]) -> dict | None:
+    """Soma dos ajustes da pessoa em um lote preparado pela conferência (manifesto).
+
+    None quando o lote não passou pela conferência guiada ou não guardou o que a tela
+    sugeriu: ausente não vira zero.
+    """
+    try:
+        manifesto = json.loads(lote["euler_importacao.json"])
+    except (KeyError, ValueError):
+        return None
+    adaptacoes = manifesto.get("adaptacoes", [])
+    if not adaptacoes or any("sugerido" not in a for a in adaptacoes):
+        return None
+    total: dict[str, int] = {}
+    for a in adaptacoes:
+        for k, v in contar_ajustes(a, a["sugerido"]).items():
+            total[k] = total.get(k, 0) + v
+    return {**total, "fontes": len(adaptacoes)}
 
 
 # ------------------------------------------------------------ resumo do que foi entendido
@@ -660,7 +904,13 @@ def guia_importacao(arquivos, *, chave, salvo=None, origem=None, caldeira=None):
     identidade = assinatura_envio(arquivos, {})[:12]
     base = f"{chave}_{identidade}"
     ajustes = st.session_state.setdefault(f"{base}_cabecalhos", {})
-    fontes = ler_fontes(arquivos, ajustes)
+    duplos = st.session_state.setdefault(f"{base}_duplos", {})
+    fontes = ler_fontes(arquivos, ajustes, duplos)
+    # o que a EULER detectou sozinha, para registrar o que a pessoa ajustou (T16)
+    detectado = {
+        f.chave: (f.linha_cabecalho, f.cabecalho_duplo)
+        for f in (ler_fontes(arquivos) if ajustes or duplos else fontes)
+    }
     decisoes, perfil = {}, {}
     st.markdown("**Confira como a EULER vai ler sua planilha**")
     st.caption(
@@ -682,10 +932,21 @@ def guia_importacao(arquivos, *, chave, salvo=None, origem=None, caldeira=None):
             if linha_cab != fonte.linha_cabecalho:
                 ajustes[fonte.chave] = int(linha_cab)
                 st.rerun()
+            duplo = st.checkbox(
+                "Cabeçalho em duas linhas (grupo em cima, colunas embaixo)",
+                value=fonte.cabecalho_duplo,
+                key=f"{prefixo}_duplo_{fonte.linha_cabecalho}_{fonte.cabecalho_duplo}",
+                help="Para células mescladas como “Temperaturas” sobre “Gases · Água · Ar”: "
+                "os nomes viram “Temperaturas · Gases” e assim por diante.",
+            )
+            if duplo != fonte.cabecalho_duplo:
+                duplos[fonte.chave] = duplo
+                st.rerun()
             if fonte.linha_cabecalho > 1:
                 st.caption(
-                    f"Cabeçalho encontrado na linha {fonte.linha_cabecalho}; as linhas acima "
-                    "(títulos) ficam só no original."
+                    f"Cabeçalho encontrado na linha {fonte.linha_cabecalho}"
+                    + (f" e {fonte.linha_cabecalho + 1}" if fonte.cabecalho_duplo else "")
+                    + "; as linhas acima (títulos) ficam só no original."
                 )
             tabelas = ["", *TABELAS]
             sugestao = sugerir_tabela(fonte) or ""
@@ -793,19 +1054,34 @@ def guia_importacao(arquivos, *, chave, salvo=None, origem=None, caldeira=None):
                     key=f"{prefixo}_origem",
                 )
             if tabela == "combustivel" and "tipo" not in mapa.values():
+                tipos = ["", "recebimento", "estoque"]
+                tipo_sugerido = sugerir_tipo(fonte) or ""
                 constantes["tipo"] = st.selectbox(
                     "O que todas as linhas representam?",
-                    ["", "recebimento", "estoque"],
+                    tipos,
+                    index=tipos.index(tipo_sugerido),
                     format_func=lambda t: t or "Informe ou associe uma coluna com o tipo",
                     key=f"{prefixo}_tipo",
                 )
+                if tipo_sugerido and constantes["tipo"] == tipo_sugerido:
+                    st.caption(
+                        f"Sugestão: o nome “{fonte.aba or fonte.arquivo}” fala de {tipo_sugerido}."
+                    )
+            sugerido = sugestao_da_fonte(
+                fonte, tabela, salvo=salvo, origem=origem, caldeira=caldeira
+            )
+            sugerido["linha_cabecalho"], sugerido["cabecalho_duplo"] = detectado.get(
+                fonte.chave, (fonte.linha_cabecalho, fonte.cabecalho_duplo)
+            )
             decisoes[fonte.chave] = {
                 "tabela": tabela,
                 "mapeamento": mapa,
                 "unidades": unidades,
                 "constantes": constantes,
                 "linha_cabecalho": fonte.linha_cabecalho,
+                "cabecalho_duplo": fonte.cabecalho_duplo,
                 **({"combinar": juntar} if juntar else {}),
+                "sugerido": sugerido,
             }
             perfil.update(mapa)
             r = resumo_da_fonte(fonte, decisoes[fonte.chave])
@@ -828,6 +1104,18 @@ def guia_importacao(arquivos, *, chave, salvo=None, origem=None, caldeira=None):
                     )
             with st.expander("Ver primeiras linhas do arquivo original"):
                 st.dataframe(fonte.bruto.head(8), hide_index=True, width="stretch")
+    por_tabela: dict[str, list[str]] = {}
+    for k, d in decisoes.items():
+        por_tabela.setdefault(d["tabela"], []).append(k)
+    for t, chaves in por_tabela.items():
+        if len(chaves) > 1:
+            st.info(
+                f"{len(chaves)} fontes vão para {TABELAS[t].titulo} ("
+                + ", ".join(f"“{k}”" for k in chaves)
+                + "): as linhas se juntam nesta ordem. O mesmo registro repetido igual entra "
+                "uma vez; com valores diferentes, a importação para e mostra onde.",
+                icon=":material/merge:",
+            )
     identidade_decisoes = assinatura_envio(arquivos, decisoes)[:12]
     confirmado = st.checkbox(
         "Conferi as colunas, as unidades e a origem dos registros selecionados",

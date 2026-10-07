@@ -5,12 +5,14 @@ registros persistidos; não estima nada. Oportunidades não confirmadas não sã
 economia verificada não é contada duas vezes.
 """
 
+import armazenamento as arm
 import pandas as pd
 import streamlit as st
 from acompanhamento_ui import brl, data, faixa_situacao, periodo, planta_e_equipamento
 from blocos.percurso import renderizar as renderizar_percurso
 from componentes import cabecalho, md
 
+from euler.fechamento import periodos_pendentes, previa_do_proximo_fechamento, versao_codigo
 from euler.formato import num
 from euler.painel import CRITERIOS, fila_de_atencao, painel
 
@@ -83,14 +85,47 @@ def item_fila(i: dict) -> None:
             )
 
 
+@st.cache_data(show_spinner="Calculando a prévia do período novo…", max_entries=16)
+def _previa(raiz: str, planta_id: str, equip_id: str, marco: tuple) -> dict | None:
+    """Prévia do próximo fechamento (D108); `marco` muda quando os dados ou o histórico mudam."""
+    a = arm.repositorio().armazem(planta_id)
+    try:
+        return previa_do_proximo_fechamento(a, equip_id)
+    finally:
+        a.fechar()
+
+
+def aviso_dados_novos(prev: dict) -> None:
+    """Dados novos desde o último fechamento: prévia rotulada, nunca gravada."""
+    with st.container(border=True, key="painel-previa"):
+        st.badge("Prévia · ainda não fechado", icon=":material/preview:", color="gray")
+        if "motivo" in prev:
+            st.markdown(md(f"**Há período completo ainda não fechado.** {prev['motivo']}"))
+        else:
+            st.markdown(
+                md(f"**Período completo ainda não fechado: {periodo(prev)}.** {prev['frase']}")
+            )
+        st.caption(
+            "A prévia usa a mesma conta do fechamento, mas não é gravada nem entra no "
+            "histórico. Para registrar o resultado, feche o período."
+        )
+        st.page_link(
+            "paginas/fechamentos.py", label="Fechar o período", icon=":material/event_available:"
+        )
+
+
 def mostrar() -> None:
+    prev = None
     with planta_e_equipamento() as ctx:
         if ctx is None:
             return
-        _, _, a, eq = ctx
+        repo, planta, a, eq = ctx
         renderizar_percurso(a, eq["id"])
         p = painel(a, eq["id"])
         fila = fila_de_atencao(a, eq["id"])
+        if p["ultimo_fechamento"] is not None and periodos_pendentes(a, eq["id"]):
+            marco = (a.revisao, p["ultimo_fechamento"].get("id"), versao_codigo())
+            prev = _previa(str(repo.raiz), planta["id"], eq["id"], marco)
     cob = p["cobertura"]
     if cob["estado"] != "atualizado":
         st.warning(cob["frase"], icon=":material/update:")
@@ -111,6 +146,8 @@ def mostrar() -> None:
         st.markdown(md(f"**O que mudou:** {u['mudanca']}"))
         if u.get("persistencia"):
             st.markdown(md(f"**Persistência:** {u['persistencia']}"))
+    if prev:
+        aviso_dados_novos(prev)
     inv = p["investigacoes"]
     acoes = p["acoes"]
     ver = p["verificado"]

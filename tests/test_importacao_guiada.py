@@ -110,7 +110,7 @@ def test_origem_declarada_nao_pode_substituir_sintetico_por_real():
         preparar_lote(arquivos, escolhas)
 
 
-def test_duas_colunas_para_mesma_grandeza_e_duas_fontes_mesma_tabela_bloqueiam():
+def test_duas_colunas_para_mesma_grandeza_bloqueiam_e_fontes_da_mesma_tabela_se_juntam():
     arquivos = {"a.csv": b"data,tipo,valor,outro\n2026-10-01,recebimento,1,2\n"}
     f = ler_fontes(arquivos)[0]
     escolhas = decisao(
@@ -121,13 +121,26 @@ def test_duas_colunas_para_mesma_grandeza_e_duas_fontes_mesma_tabela_bloqueiam()
     )
     with pytest.raises(ValueError, match="mesma coluna"):
         preparar_lote(arquivos, escolhas)
-    arquivos["b.csv"] = arquivos["a.csv"]
-    fontes = ler_fontes(arquivos)
-    escolhas = {
-        f.chave: {"tabela": "combustivel", "mapeamento": {"data": "data", "tipo": "tipo"}}
-        for f in fontes
+    # D107: duas fontes da mesma tabela se juntam; o mesmo registro igual entra uma vez
+    arquivos = {
+        "a.csv": b"data,tipo,lote,kg\n2026-10-01,recebimento,L1,10\n2026-10-02,recebimento,L2,20\n",
+        "b.csv": b"data,tipo,lote,kg\n2026-10-02,recebimento,L2,20\n2026-10-03,recebimento,L3,30\n",
     }
-    with pytest.raises(ValueError, match="mesma tabela"):
+    mapa = {"data": "data", "tipo": "tipo", "lote": "lote_id", "kg": "massa_kg"}
+    escolhas = {
+        f.chave: {"tabela": "combustivel", "mapeamento": mapa, "unidades": {"kg": "kg"}}
+        for f in ler_fontes(arquivos)
+    }
+    lote = preparar_lote(arquivos, escolhas)
+    junto = pd.read_csv(io.BytesIO(lote["combustivel.csv"]))
+    assert junto["lote_id"].tolist() == ["L1", "L2", "L3"]
+    ad = {a["fonte"]: a for a in json.loads(lote["euler_importacao.json"])["adaptacoes"]}
+    assert ad["a.csv"]["linhas_no_adaptado"] == [2, 3]
+    assert ad["b.csv"]["linhas_no_adaptado"] == [4, 4]
+    assert ad["b.csv"]["repetidas_iguais_entraram_uma_vez"] == [2]
+    # o mesmo registro com valores diferentes: a EULER não escolhe qual vale
+    arquivos["b.csv"] = arquivos["b.csv"].replace(b"L2,20", b"L2,25")
+    with pytest.raises(ValueError, match="valores diferentes"):
         preparar_lote(arquivos, escolhas)
 
 
