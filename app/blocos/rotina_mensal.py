@@ -37,8 +37,8 @@ def registro_do_mes(resumo: dict) -> None:
     )
     if not resumo["completo"]:
         st.warning(
-            "Conta parcial ou pendente de revisão. Os valores abaixo não representam "
-            "todo o mês: confira a cobertura e os motivos."
+            "Conta parcial · há dados faltantes, períodos sem aprovação ou revisão pendente. "
+            "Os valores não representam todo o mês."
         )
     if cob:
         st.caption(
@@ -46,11 +46,14 @@ def registro_do_mes(resumo: dict) -> None:
             f"com conta no calendário do mês. "
             "Os períodos seguem as medições de estoque, sem completar dias ausentes."
         )
-    for motivo in resumo.get("motivos", []):
-        st.caption(md(f"• {motivo}"))
-    for frase in cob.get("frases", []):
-        st.caption(md(frase))
-    with st.expander("Quem registrou e quais versões estão em uso"):
+    motivos = resumo.get("motivos", [])
+    if motivos:
+        st.caption(md(motivos[0]))
+    with st.expander("Ver cobertura, motivos e versões dos registros"):
+        for motivo in motivos[1:]:
+            st.caption(md(motivo))
+        for frase in cob.get("frases", []):
+            st.caption(md(frase))
         for t in resumo["trechos"]:
             st.markdown(
                 md(
