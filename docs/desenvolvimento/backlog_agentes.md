@@ -102,3 +102,13 @@ Legenda de status: ☐ a fazer · ◐ em andamento · ☑ pronto (testes passand
 
 ## Fase 1 (depois do edital, só listado)
 Alertas automáticos · registro de ações e verificação do resultado (M4) · fechamento mensal do custo do vapor (M5) · várias caldeiras e plantas · login e nuvem · API para parceiros · foto do caderno (OCR) · assistente de dúvidas com base nos dados do cliente · comparação anônima entre plantas · base de qualidade por fornecedor.
+
+### Ideia para desenvolver · tendência de desgaste da caldeira (sugestão do Adryan, 07/10/2026)
+Ainda não é ticket: precisa de especificação e revisão de física antes de virar código.
+
+- **Pergunta:** com os meses acumulados, o desempenho está piorando aos poucos? Em que ritmo? Quanto disso volta com limpeza e quanto fica?
+- **Sinais que já existem:** consumo de combustível por tonelada de vapor nas condições comparadas (fechamentos), temperatura dos gases e O₂ por dia (dia a dia), perda nos gases (base PCI) e ações registradas (limpeza, manutenção).
+- **Forma provável:** inclinação por mês, com faixa de incerteza, calculada entre duas ações registradas. O padrão "dente de serra" (piora, limpeza, volta) separa o desgaste recuperável (fuligem, incrustação) do que não volta. Degraus continuam com a detecção que já existe.
+- **Pré-requisitos (a definir com os revisores):** número mínimo de fechamentos válidos na mesma referência; mesmos instrumentos, sem recalibração no meio; ações registradas. Sem isso, a análise fica bloqueada com o motivo ("ainda não dá para estimar").
+- **Limites (AGENTS.md):** projeção é marcada como projeção, nunca como previsão; nada de probabilidade inventada nem de "vida restante" da caldeira; a saída é uma verificação para o responsável técnico, nunca um comando ("limpe a cada X dias" não pode aparecer).
+- **Por que ajuda a assinatura:** é um resultado que só existe com meses de dados da mesma caldeira, e fica mais útil quanto mais tempo a planta continua.
