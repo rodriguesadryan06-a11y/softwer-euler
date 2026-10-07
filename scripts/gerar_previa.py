@@ -43,7 +43,7 @@ from formatacao import (
     variacao_referencia,
 )
 from graficos import CORES
-from previa_acompanhamento import dados_acompanhamento
+from previa_acompanhamento import dados_acompanhamento, dados_mensais
 from previa_publicos import dados_publicos
 
 from euler.capacidades import avaliar
@@ -671,6 +671,7 @@ def dados_da_previa() -> dict:
         },
         "atos": {ato: _ato(pasta, rotulo) for ato, (pasta, rotulo) in ATOS.items()},
         "acomp": dados_acompanhamento(),
+        "mensal": dados_mensais(),
         "publicos": dados_publicos(),
         "padrao": [0, 3, 4, 5],
     }

@@ -361,3 +361,124 @@ def dados_acompanhamento() -> dict:
         "criterios": CRITERIOS,
         "rotulos_evidencia": {k: v for k, v in ROTULOS.items()},
     }
+
+
+def _dh(x) -> str:
+    return "—" if not x else f"{pd.Timestamp(x).tz_convert(FUSO):%d/%m %H:%M}"
+
+
+def dados_mensais() -> dict:
+    """Painel novo e fechamento do mês (D111–D114) na mesma planta de demonstração.
+
+    Calculado pelo motor numa planta à parte: meses e cobertura, prévia de setembro (sem
+    gravar), fechamento aprovado do mês, os totais do mês, a frase "por que a conta mudou"
+    do último trecho, as condições comparadas e o dia a dia dos últimos 30 dias.
+    """
+    from euler.dia_a_dia import dia_a_dia
+    from euler.mensal import fechar_mes, meses, previa_do_mes, resumo_do_mes
+
+    outubro = pd.Timestamp("2026-10-07T12:00:00-03:00")
+    repo = Repositorio(Path(tempfile.mkdtemp()) / "r")
+    planta = repo.criar_planta("Demonstração · caldeira sintética", classe="sintetico")
+    a = repo.armazem(planta["id"])
+    try:
+        a.criar_equipamento(
+            EQ, "Caldeira de demonstração", EQ, config={"altitude_m": 1000.0}, autor=AUTOR
+        )
+        a.confirmar(
+            a.previa(EQ, {p.name: p.read_bytes() for p in sorted(DEMO.glob("*.csv"))}), autor=AUTOR
+        )
+        s = periodos_entre_estoques(a.pacote(EQ))
+        criar_referencia(a, EQ, s[0][0], s[3][1], "inicial", "Agosto (demonstração)", AUTOR)
+        lista = []
+        for m in meses(a, EQ, outubro):
+            lista.append(
+                {
+                    "mes": m["mes"],
+                    "rotulo": m["rotulo"],
+                    "estado": m["estado"],
+                    "estado_rotulo": m["estado_rotulo"],
+                    "frase": m["frase"],
+                    "cobertura": m["cobertura"]["frases"],
+                    "trechos": [
+                        {
+                            "periodo": f"{_dh(t['inicio'])} a {_dh(t['fim'])}",
+                            "valido": t["valido"],
+                            "motivo": t["motivo"],
+                            "periodos": t["periodos"],
+                        }
+                        for t in m["trechos"]
+                    ],
+                }
+            )
+        prev = previa_do_mes(a, EQ, "2026-09", outubro)
+        previas = [
+            {
+                "periodo": f"{_dh(p['inicio'])} a {_dh(p['fim'])}",
+                "frase": p["frase"] if p["valido"] else p["motivo"],
+                "situacao": p["situacao"],
+                "consumido": brl((p.get("conta") or {}).get("consumido", {}).get("custo_brl"))
+                if (p.get("conta") or {}).get("disponivel")
+                else "—",
+                "diferenca": brl((p.get("conta") or {}).get("desvio", {}).get("custo_brl"))
+                if (p.get("conta") or {}).get("disponivel")
+                else "—",
+            }
+            for p in prev["previas"]
+        ]
+        fs = fechar_mes(a, EQ, "2026-09", AUTOR, outubro)
+        resumo = resumo_do_mes(a, EQ, "2026-09")
+        ultimo = fs[-1]["resultado"]
+        n = ultimo["nucleo"]
+        dias = {
+            k: (pd.Timestamp(p["fim"]) - pd.Timestamp(p["inicio"])).total_seconds() / 86400
+            for k, p in (("referencia", n["referencia"]), ("comparacao", n["periodo"]))
+        }
+        q = conclusao_financeira(n["explicacao_conta"], n["oportunidades"], dias)
+        cond = ultimo.get("condicoes") or {}
+        dd = dia_a_dia(a.pacote(EQ), referencia_vigente(a, EQ))
+    finally:
+        a.fechar()
+    return {
+        "meses": lista,
+        "previas": previas,
+        "resumo": {
+            "rotulo": resumo["rotulo"],
+            "consumido": brl(resumo["consumido_brl"]),
+            "esperado": brl(resumo["esperado_brl"]),
+            "diferenca": brl(resumo["diferenca_brl"]),
+            "combustivel_t": num(resumo["combustivel_t"], 0)
+            if resumo["combustivel_t"] is not None
+            else None,
+            "trechos": [
+                {
+                    "periodo": f"{data(t['inicio'])} a {data(t['fim'])}",
+                    "situacao": t["situacao"],
+                    "frase": t["frase"] or t["motivo"],
+                }
+                for t in resumo["trechos"]
+            ],
+        },
+        "ultimo_trecho": periodo(n["periodo"]),
+        "ajustado_por": (q.get("esperado") or {}).get("ajustado_por", []),
+        "ponte": (q.get("ponte") or {}).get("resposta"),
+        "condicoes": {"frases": cond.get("frases", []), "nao_ajustado": cond.get("nao_ajustado")},
+        "ainda_no_desvio": (q.get("evitavel") or {}).get("ainda_no_desvio", []),
+        "dia": {
+            "serie": [
+                {
+                    "dia": f"{pd.Timestamp(r['dia']):%d/%m}",
+                    **{
+                        k: r.get(k) for k in ("vazao_t_h", "t_gases_c", "o2_seco_pct", "recebido_t")
+                    },
+                }
+                for r in dd["serie"]
+            ],
+            "faixas": dd["faixas"],
+            "quadros": dd["quadros"],
+            "ultimo_dia": f"{pd.Timestamp(dd['ultimo_dia']):%d/%m/%Y}"
+            if dd["ultimo_dia"]
+            else None,
+            "frases": dd["frases"],
+        },
+    }

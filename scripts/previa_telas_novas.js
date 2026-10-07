@@ -227,6 +227,8 @@ function telaFechamentos() {
   const acoesAntes = info.acoes || [];
   return `${topo}${seletores(["conta"])}
     <p>${md(`**Referência v${r.versao}** · ${r.periodo} · ${r.tipo} · ${r.consumo} t de combustível por t de vapor`)}</p>
+    ${blocoMensal()}
+    <h2>Fechamentos por período</h2>
     <details><summary>Definir nova versão da referência</summary><div class="grade"><p class="legenda">Na prévia, a referência fica em agosto. No app: escolher os períodos, o tipo (mudança estrutural ou correção de dados) e o motivo. Uma referência pior que a anterior só entra como mudança estrutural confirmada.</p>
       <p class="legenda">Versões anteriores nunca mudam; fechamentos antigos continuam reproduzíveis.</p>
       ${tabela(["Versão", "Período", "Tipo", "Motivo", "Por", "Em"], [[String(r.versao), r.periodo, "inicial", r.motivo, nome() || "—", quando(ac.criadaEm)].map(e)])}</div></details>
@@ -450,7 +452,7 @@ function itemFila(i) {
 }
 
 function telaPainel() {
-  const topo = cabecalho("Acompanhar a planta", "Painel", "O que mudou, o que olhar primeiro e o que já foi verificado.", false);
+  const topo = cabecalho("Acompanhar a planta", "Painel", "Como a caldeira está no dia a dia e o mês em cinco respostas: custo, esperado, diferença, próxima verificação e resultado das ações.", false);
   if (!ac.criada) return topo + semPlanta();
   const fs = fechs();
   const u = fs[fs.length - 1];
@@ -463,7 +465,11 @@ function telaPainel() {
   if (!cob.ok) pend.push(cob.frase);
   abertas.filter((x) => x.estado === "aguardando_dados").forEach((x) => pend.push(`Investigação aguardando dados: ${x.titulo}`));
   ac.acoes.filter((x) => !x.avaliacao).forEach((x) => pend.push(`Ação sem avaliação: ${x.descricao}`));
-  return `${topo}${seletores()}
+  return `${topo}${topoPainel()}
+    <p class="legenda"><span style="color:var(--t-orange)">DADOS SINTÉTICOS</span> · não representam uma planta real.</p>
+    ${diaADiaHtml()}
+    ${cincoRespostas()}
+    <h2>Histórico e detalhes</h2>
     ${percursoHtml()}
     ${cob.ok ? "" : `<div class="alerta aviso">${icone("mao")}<div>${e(cob.frase)}</div></div>`}
     <h3>Último fechamento · ${e(u.periodo)} · referência v${u.ref_versao}</h3>
@@ -1068,3 +1074,113 @@ function financeiroPlanta() {
   estado.abrirEntrega = false;
   return h;
 }
+
+/* ---------------------------------------------- Painel novo e fechamento do mês (D111–D114) */
+const MEN = D.mensal;
+const SET = MEN.meses.find((m) => m.mes === "2026-09");
+const COR_MES = { referencia: "blue", sem_periodo: "gray", em_andamento: "gray", aguarda_anterior: "yellow", pronto: "orange", fechado: "green", revisar: "red" };
+const ESTADO_DESVIO = { acima: ["orange", "Acima do esperado (estabelecido)"], abaixo: ["blue", "Abaixo do esperado (estabelecido)"], nao_estabelecido: ["gray", "Diferença não estabelecida"], sem_faixa: ["gray", "Sem faixa de incerteza"] };
+const seloDesvio = (s) => { const [c, t] = ESTADO_DESVIO[s] || ["gray", "Sem conta (lacuna)"]; return selo(c, t); };
+function estadoMes(m) {
+  if (m.mes !== "2026-09") return m.estado;
+  return ac.mesFechado ? "fechado" : "pronto";
+}
+const rotuloEstadoMes = (m) => (m.mes === "2026-09" && ac.mesFechado ? "Fechado" : m.estado_rotulo);
+
+function graficoDia(serie, campo, faixa, unidade, casas, titulo) {
+  const pts = serie.map((r) => [r.dia, r[campo]]);
+  const vals = pts.map((p) => p[1]).filter((v) => v !== null && v !== undefined);
+  if (!vals.length) return `<p class="legenda">${e(titulo)}: sem leituras no período mostrado.</p>`;
+  const W = 380, H = 190, m = { l: 46, r: 10, t: 12, b: 26 };
+  let lo = Math.min(...vals, ...(faixa || [])), hi = Math.max(...vals, ...(faixa || []));
+  const folga = (hi - lo) * 0.25 || 1; lo -= folga; hi += folga;
+  const passo = passoBonito(hi - lo);
+  lo = Math.floor(lo / passo) * passo; hi = Math.ceil(hi / passo) * passo;
+  const X = (i) => m.l + (i * (W - m.l - m.r)) / Math.max(pts.length - 1, 1);
+  const Y = (v) => m.t + ((hi - v) / (hi - lo)) * (H - m.t - m.b);
+  let g = "";
+  for (let v = lo; v <= hi + 1e-9; v += passo) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#333333"/><text x="${m.l - 7}" y="${Y(v) + 4}" text-anchor="end" fill="#A3A3A3" font-size="11">${nf(v, casas)}</text>`;
+  if (faixa) g += `<rect x="${m.l}" width="${W - m.l - m.r}" y="${Y(faixa[1])}" height="${Math.max(Y(faixa[0]) - Y(faixa[1]), 2)}" fill="#8A8A8A" opacity=".22"><title>Comum na referência: ${nf(faixa[0], casas)} a ${nf(faixa[1], casas)} ${unidade}</title></rect>`;
+  let d = "", novo = true;
+  pts.forEach(([, v], i) => { if (v === null || v === undefined) { novo = true; return; } d += `${novo ? "M" : "L"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; novo = false; });
+  const marcas = pts.map(([dia, v], i) => (v === null || v === undefined ? "" : `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.5" fill="var(--serie)" stroke="var(--fundo)" stroke-width="2" data-dica="${e(dia)} · ${nf(v, casas)} ${e(unidade)}"/>`)).join("");
+  const rot = pts.map(([dia], i) => (i % 6 === 0 ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" fill="#A3A3A3" font-size="11">${e(dia)}</text>` : "")).join("");
+  return `<div class="cartao"><b>${e(titulo)}</b><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${e(titulo)}, em ${e(unidade)}">${g}<path d="${d}" fill="none" stroke="var(--serie)" stroke-width="2"/>${marcas}${rot}</svg></div>`;
+}
+
+function diaADiaHtml() {
+  const d = MEN.dia;
+  const quadros = d.quadros.map((q) => {
+    const v = q.media_7d === null ? "—" : `${nf(q.media_7d, q.casas)} ${q.unidade}`;
+    const sinal = q.fora_da_faixa === null ? "ⓘ" : q.fora_da_faixa ? "⚠" : "✓";
+    return metrica(q.nome, v, `<p class="legenda">${sinal} ${e(q.frase)}</p>`);
+  }).join("");
+  return `<h2>Dia a dia</h2>
+    <p class="legenda">Últimos 7 dias com registro (até ${e(d.ultimo_dia)}), comparados com o que era comum na referência. Combustível consumido só se conhece no fechamento, entre medições de estoque.</p>
+    <div class="grade g4">${quadros}</div>
+    <div class="grade g2">${graficoDia(d.serie, "vazao_t_h", d.faixas.vazao_t_h, "t/h", 1, "Vapor · vazão média do dia")}${graficoDia(d.serie, "t_gases_c", d.faixas.t_gases_c, "°C", 0, "Temperatura dos gases · média do dia")}</div>
+    <p class="legenda">Faixa cinza: do 10º ao 90º percentil dos dias da referência (o comum na base de comparação, não um limite de projeto). ${e(d.frases.join(" "))}</p>`;
+}
+
+function topoPainel() {
+  const cob = cobertura();
+  return `<div class="cartao"><div class="grade g3">
+    <div><b>${e(AC.planta)}</b><p class="legenda">${e(AC.equipamento.nome)} · ${e(AC.equipamento.caldeira_id)}</p></div>
+    <div><b>${cob.ok ? "✓" : "⟳"} Dados até ${quando(AC.diario[1])}</b><p class="legenda">${e(cob.frase)}</p></div>
+    <div><b>Mês: ${e(SET.rotulo)}</b><p>${selo(COR_MES[estadoMes(SET)], rotuloEstadoMes(SET))}</p></div></div></div>`;
+}
+
+function cincoRespostas() {
+  const r = MEN.resumo;
+  const previa = !ac.mesFechado;
+  const fila = filaDeAtencao();
+  const cartao = (pergunta, corpo) => `<div class="cartao"><b>${e(pergunta)}</b>${corpo}</div>`;
+  const lacunas = r.trechos.filter((t) => !t.situacao).map((t) => `${t.periodo} sem conta`).join("; ");
+  const c1 = cartao("1 · Quanto custou o combustível consumido?", `<div class="metrica"><div class="rotulo">No mês (trechos com conta)</div><div class="valor">${e(r.consumido)}</div></div><p class="legenda">${e(r.combustivel_t)} t queimadas</p>${lacunas ? `<p class="legenda">⛔ ${e(lacunas)}.</p>` : ""}`);
+  const c2 = cartao("2 · Quanto seria esperado nas condições comparadas?", `<div class="metrica"><div class="rotulo">No mês (trechos com conta)</div><div class="valor">${e(r.esperado)}</div></div><p class="legenda">Ajustado por ${e(MEN.ajustado_por.join(", "))}.</p>`);
+  const c3 = cartao("3 · Qual diferença ficou estabelecida e o que falta saber?", `<div class="metrica"><div class="rotulo">No mês (soma dos trechos)</div><div class="valor">${e(r.diferenca)}</div></div>
+    ${r.trechos.map((t) => `<p class="legenda">${seloDesvio(t.situacao)} ${e(t.periodo)}</p>`).join("")}
+    <details><summary>Condições comparadas e o que ficou no desvio</summary><ul>${MEN.condicoes.frases.map((x) => `<li>${md(x)}</li>`).join("")}</ul><p class="legenda">${e(MEN.condicoes.nao_ajustado || "")}</p>${MEN.ainda_no_desvio.map((x) => `<p class="legenda">• ${md(x)}</p>`).join("")}</details>`);
+  const ponte = MEN.ponte ? `<div class="cartao fin-total"><b>Por que a conta mudou · ${e(MEN.ultimo_trecho)}</b><p>${md(MEN.ponte)}</p></div>` : "";
+  const c4 = cartao("4 · Qual é a próxima verificação, quem faz e em que pé está?", (fila.length ? fila.slice(0, 2).map((i) => `<p>${md(`**${i.titulo}**`)}</p>${i.proxima ? `<p class="legenda">Próximo passo: ${e(i.proxima)}</p>` : ""}<p class="legenda">Quem: ${e((i.criterios || {}).responsavel || "responsável ainda não definido")} · Situação: ${e((i.criterios || {}).estado || "não aberta como investigação")}</p>`).join("") : "<p>Nada pendente: sem desvio estabelecido, ação sem verificação ou dado faltando.</p>") + `<div>${link("acoes", "Investigações e ações", "acoes")}</div>`);
+  const c5 = cartao("5 · O que aconteceu depois das ações anteriores?", (ac.acoes.length ? ac.acoes.slice(-3).reverse().map((x) => `<p>${md(`**${quando(x.data)} · ${x.descricao}**`)}</p><p class="legenda">${e(x.avaliacao ? x.avaliacao.frase : "Ainda não avaliada.")}</p>`).join("") : "<p>Nenhuma ação registrada ainda.</p>") + '<p class="legenda">Economia verificada pelo protocolo: nenhuma até agora.</p>');
+  return `<h2>O mês em cinco respostas</h2>
+    <p class="legenda">${e(r.rotulo.charAt(0).toUpperCase() + r.rotulo.slice(1))} (${r.trechos.length} trechos) · referência v${AC.referencia.versao}</p>
+    ${previa ? `<div class="alerta aviso">${icone("mao")}<div><b>Prévia:</b> setembro ainda não foi aprovado. Os números abaixo são os mesmos que serão gravados ao aprovar. ${link("fechamentos", "Aprovar em Fechamentos", "fechamentos")}</div></div>` : ""}
+    <div class="grade g3">${c1}${c2}${c3}</div>${ponte}<div class="grade g2">${c4}${c5}</div>`;
+}
+
+function blocoMensal() {
+  const sel = MEN.meses.find((m) => m.mes === (estado.mesSel || "2026-09")) || SET;
+  const est = estadoMes(sel);
+  const linhas = MEN.meses.map((m) => [m.rotulo, rotuloEstadoMes(m), m.mes === "2026-09" && ac.mesFechado ? "Mês fechado: 3 trecho(s), 1 lacuna registrada." : m.frase].map(e));
+  let acoes = "";
+  if (sel.mes === "2026-09") {
+    if (!ac.mesFechado) {
+      acoes = `<div class="linha-botoes"><button class="botao" data-acao="mes-previa">Ver prévia do mês</button><button class="botao primario" data-acao="mes-aprovar">Aprovar fechamento do mês</button></div>${erroDe("mes")}`;
+      if (estado.mesPrevia) acoes += `<div class="alerta info">${icone("busca")}<div>Prévia: nada foi gravado. Ao aprovar, estes resultados ficam no histórico.</div></div>${tabela(["Trecho", "Resultado", "Consumido", "Diferença"], MEN.previas.map((p) => [p.periodo, p.frase, p.consumido, p.diferenca].map(e)), [2, 3])}`;
+    } else {
+      acoes = `<div class="alerta ok">${icone("ok")}<div>Setembro aprovado por ${e(autorDe(ac.mesFechado.autor))} em ${quando(ac.mesFechado.em)}. Consumido ${e(MEN.resumo.consumido)}, esperado ${e(MEN.resumo.esperado)}, diferença ${e(MEN.resumo.diferenca)}.</div></div>
+        <details><summary>Revisar o mês (quando um dado antigo for corrigido)</summary><p class="legenda">No app: se um registro do mês for corrigido depois da aprovação, o mês aparece como "Revisar". A revisão pede um motivo e gera uma nova versão só dos trechos afetados; a versão antiga fica no histórico.</p></details>`;
+    }
+  } else if (est === "referencia") acoes = '<p class="legenda">Agosto é a base de comparação: não se fecha contra si mesmo.</p>';
+  else acoes = '<p class="legenda">Só prévia quando houver período completo: o mês ainda não terminou.</p>';
+  return `<h2>Fechamento do mês</h2>
+    <p class="legenda">Cada período entre medições de estoque pertence ao mês em que termina. Os meses são fechados na ordem; um trecho sem dados vira lacuna registrada, nunca consumo inventado.</p>
+    ${tabela(["Mês", "Situação", "O que falta"], linhas)}
+    <label class="campo" style="max-width:320px">Mês<select id="mes-sel">${MEN.meses.map((m) => `<option value="${m.mes}" ${m.mes === sel.mes ? "selected" : ""}>${e(m.rotulo)}</option>`).join("")}</select></label>
+    <p>${selo(COR_MES[est], rotuloEstadoMes(sel))} ${md(sel.frase)}</p>
+    ${sel.cobertura.length ? `<ul>${sel.cobertura.map((x) => `<li>${e(x)}</li>`).join("")}</ul>` : ""}
+    ${sel.trechos.length ? tabela(["Trecho", "Períodos", "Conta"], sel.trechos.map((t) => [t.periodo, String(t.periodos), t.valido ? "com conta" : "lacuna: " + t.motivo].map(e)), [1]) : ""}
+    ${acoes}`;
+}
+
+ACOES["mes-previa"] = () => { estado.mesPrevia = !estado.mesPrevia; mostrar(); };
+ACOES["mes-aprovar"] = () => {
+  if (!exigirNome("mes")) return;
+  ac.mesFechado = { autor: nome(), em: agora() };
+  estado.mesPrevia = false;
+  evento("mês 2026-09", "fechado");
+  gravou("Setembro fechado: 3 trechos gravados (1 lacuna). Veja o Painel.");
+};
+document.addEventListener("change", (ev) => { if (ev.target.id === "mes-sel") { estado.mesSel = ev.target.value; mostrar(); } });
