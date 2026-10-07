@@ -93,7 +93,7 @@ def test_ciclo_completo_pelas_telas_com_a_planta_de_demonstracao(raiz):
     for pergunta in (
         "1 · Quanto custou o combustível consumido?",
         "2 · Quanto seria esperado nas condições comparadas?",
-        "3 · Qual diferença ficou estabelecida e o que falta saber?",
+        "3 · Qual é a diferença estimada e o que falta saber?",
         "4 · Qual é a próxima verificação, quem faz e em que pé está?",
         "5 · O que aconteceu depois das ações anteriores?",
     ):
@@ -103,6 +103,20 @@ def test_ciclo_completo_pelas_telas_com_a_planta_de_demonstracao(raiz):
     # período completo depois do fechamento: prévia rotulada, sem gravar (D108)
     assert "Prévia · ainda não fechado" in t
     assert "Período completo ainda não fechado: 14/09/2026 a 21/09/2026" in t
+    assert "Histórico mensal da caldeira" in t
+    assert "Conta parcial" in t
+    # Mês sem fechamento: o painel não pode reapresentar os reais de setembro.
+    mes = campo(at.selectbox, "Mês acompanhado")
+    mes.set_value("2026-10").run()
+    assert not at.exception
+    assert "Este mês ainda não tem fechamento registrado" in textos(at)
+    assert all(
+        m.value == "—"
+        for m in at.metric
+        if m.label in ("Consumido", "Esperado", "Diferença estimada")
+    )
+    campo(at.selectbox, "Mês acompanhado").set_value("2026-09").run()
+    assert not at.exception
 
     # o nome digitado continua valendo em outra tela
     ir(at, "paginas/fechamentos.py")

@@ -369,15 +369,22 @@ def revisar_mes(
     ]
 
 
-def resumo_do_mes(a: Armazem, equip_id: str, chave: str) -> dict | None:
+def resumo_do_mes(a: Armazem, equip_id: str, chave: str, agora=None, *, plano=None) -> dict | None:
     """Totais do mês a partir dos fechamentos em vigor do mês (soma dos trechos com conta).
 
     Somas de valores já calculados; a faixa de incerteza continua por trecho (não há
     combinação estatística dos trechos nesta versão). None se o mês não tem fechamento.
-    Saída: mes, rotulo, fechamentos, trechos (período, situação, frase, custos), lacunas,
-    consumido_brl, esperado_brl, diferenca_brl, combustivel_t (somas só dos trechos com
-    conta; None se algum trecho com conta não tem preço) e completo (todos os trechos com
-    conta e preço).
+    Saída: valores em BRL e t, trechos com autor/data/revisão já registrados, motivos de
+    ausência e cobertura em dias. `dias_com_conta` e `dias_com_valor` contam apenas a
+    interseção dos trechos aprovados com o calendário do mês; dias de outro mês não são
+    somados nessa cobertura. Os custos preservam a janela inteira de cada trecho (D111).
+    Não há inferência de consumo diário nem complemento de períodos sem registros.
+
+    `completo` exige todos os períodos atribuídos ao mês fechados, conta e preço em todos
+    os trechos e nenhuma revisão pendente; não significa cobertura de todo o calendário,
+    causa confirmada ou economia. `cobertura` informa os dias que ficaram de fora. Somam-se
+    apenas valores gravados em vigor; se um trecho com conta não tem preço, a soma em BRL
+    permanece None. Uma correção pendente não recalcula valores aprovados em silêncio.
     """
     fs = [
         f
@@ -386,22 +393,45 @@ def resumo_do_mes(a: Armazem, equip_id: str, chave: str) -> dict | None:
     ]  # fechamentos de antes do fechamento mensal entram no mês em que terminam
     if not fs:
         return None
+    plano = plano if plano is not None else plano_do_mes(a, equip_id, chave, agora)
+    if plano["mes"] != chave:
+        raise ValueError("O plano e o resumo devem pertencer ao mesmo mês.")
     trechos, com_conta = [], []
     for f in fs:
-        c = f["resultado"]["nucleo"]["explicacao_conta"]
+        resultado = f["resultado"]
+        nucleo = resultado["nucleo"]
+        c = nucleo["explicacao_conta"]
         disp = bool(c.get("disponivel"))
+        valorado = disp and all(
+            c[parte]["custo_brl"] is not None for parte in ("consumido", "esperado", "desvio")
+        )
+        motivo = None
+        if not disp:
+            motivo = c.get("motivo") or "Conta indisponível com os dados deste trecho."
+        elif not valorado:
+            motivo = nucleo["politica_custo"].get("motivo") or (
+                "Preço indisponível para valorar a conta deste trecho."
+            )
         trechos.append(
             {
                 "fechamento_id": f["id"],
                 "inicio": f["inicio"],
                 "fim": f["fim"],
+                "autor": f["autor"],
+                "criado_em": f["criado_em"],
+                "revisao_dados": f["revisao_dados"],
+                "revisa": resultado.get("revisa"),
+                "motivo_revisao": resultado.get("motivo_revisao"),
+                "referencia_versao": nucleo["referencia"]["versao"],
+                "conta_disponivel": disp,
+                "valoracao_disponivel": valorado,
                 "situacao": f["resultado"]["situacao"],
                 "frase": f["resultado"]["situacao_frase"],
                 "consumido_brl": c["consumido"]["custo_brl"] if disp else None,
                 "esperado_brl": c["esperado"]["custo_brl"] if disp else None,
                 "diferenca_brl": c["desvio"]["custo_brl"] if disp else None,
                 "combustivel_t": c["consumido"]["combustivel_t"] if disp else None,
-                "motivo": None if disp else c.get("motivo"),
+                "motivo": motivo,
             }
         )
         if disp:
@@ -411,17 +441,47 @@ def resumo_do_mes(a: Armazem, equip_id: str, chave: str) -> dict | None:
         valores = [t[campo] for t in com_conta]
         return None if not valores or any(v is None for v in valores) else float(sum(valores))
 
+    ini_mes, fim_mes = _limites(chave)
+
+    def dias_aprovados(campo):
+        return sum(
+            _dias(max(_ts(t["inicio"]), ini_mes), min(_ts(t["fim"]), fim_mes))
+            for t in trechos
+            if t[campo]
+        )
+
+    pendentes = sum(p["situacao"] == "aberto" for p in plano["periodos"])
+    motivos = [
+        f"{_fmt(t['inicio'])} a {_fmt(t['fim'])}: {t['motivo']}" for t in trechos if t["motivo"]
+    ]
+    if pendentes:
+        motivos.append(f"{pendentes} período(s) sem aprovação não entram nos valores apresentados.")
+    if plano["a_revisar"]:
+        motivos.append(
+            "Há registros corrigidos depois da aprovação: os valores registrados permanecem "
+            "até a revisão explícita do mês."
+        )
     return {
         "mes": chave,
         "rotulo": rotulo_mes(chave),
+        "estado": plano["estado"],
+        "estado_rotulo": plano["estado_rotulo"],
+        "a_revisar": plano["a_revisar"],
+        "periodos_pendentes": pendentes,
+        "cobertura": {
+            **plano["cobertura"],
+            "dias_com_conta": dias_aprovados("conta_disponivel"),
+            "dias_com_valor": dias_aprovados("valoracao_disponivel"),
+        },
+        "motivos": motivos,
         "fechamentos": [f["id"] for f in fs],
         "trechos": trechos,
-        "lacunas": [t for t in trechos if t["situacao"] is None],
+        "trechos_com_valor": sum(t["valoracao_disponivel"] for t in trechos),
+        "lacunas": [t for t in trechos if not t["conta_disponivel"]],
         "consumido_brl": soma("consumido_brl"),
         "esperado_brl": soma("esperado_brl"),
         "diferenca_brl": soma("diferenca_brl"),
         "combustivel_t": soma("combustivel_t"),
-        "completo": bool(com_conta)
-        and len(com_conta) == len(trechos)
-        and soma("consumido_brl") is not None,
+        "completo": plano["estado"] == "fechado"
+        and all(t["valoracao_disponivel"] for t in trechos),
     }

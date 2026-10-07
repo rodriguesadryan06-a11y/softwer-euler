@@ -177,9 +177,13 @@ def cinco_respostas(f: dict | None, resumo: dict | None, pacote, fila: list, p: 
     st.markdown("### O mês em cinco respostas")
     if f is None:
         st.info(
-            "Ainda não há fechamento: defina a referência e feche o primeiro mês em "
-            "**Fechamentos** para as respostas aparecerem."
+            "Este mês ainda não tem fechamento registrado. Os valores ficam em branco "
+            "até haver uma conta; consulte a prévia e os dados necessários em **Fechamentos**."
         )
+        for col, rotulo in zip(
+            st.columns(3), ("Consumido", "Esperado", "Diferença estimada"), strict=True
+        ):
+            col.metric(rotulo, "—")
         st.page_link(
             "paginas/fechamentos.py", label="Ir para Fechamentos", icon=":material/event_available:"
         )
@@ -202,7 +206,7 @@ def cinco_respostas(f: dict | None, resumo: dict | None, pacote, fila: list, p: 
     with c1:
         caixa = _cartao("custou", "1 · Quanto custou o combustível consumido?")
         if resumo:
-            caixa.metric("No mês (trechos com conta)", brl(resumo["consumido_brl"]))
+            caixa.metric("Nos trechos registrados", brl(resumo["consumido_brl"]))
             caixa.caption(
                 f"{num(resumo['combustivel_t'], 0)} t queimadas"
                 if resumo["combustivel_t"] is not None
@@ -233,7 +237,7 @@ def cinco_respostas(f: dict | None, resumo: dict | None, pacote, fila: list, p: 
     with c2:
         caixa = _cartao("esperado", "2 · Quanto seria esperado nas condições comparadas?")
         if resumo:
-            caixa.metric("No mês (trechos com conta)", brl(resumo["esperado_brl"]))
+            caixa.metric("Nos trechos registrados", brl(resumo["esperado_brl"]))
         else:
             caixa.metric(
                 "No período", brl(q["esperado"]["custo_brl"]) if q.get("disponivel") else "—"
@@ -243,9 +247,13 @@ def cinco_respostas(f: dict | None, resumo: dict | None, pacote, fila: list, p: 
 
     # 3. diferença estabelecida e dúvidas
     with c3:
-        caixa = _cartao("diferenca", "3 · Qual diferença ficou estabelecida e o que falta saber?")
+        caixa = _cartao("diferenca", "3 · Qual é a diferença estimada e o que falta saber?")
         if resumo:
             caixa.metric("No mês (soma dos trechos)", brl(resumo["diferenca_brl"]))
+            caixa.caption(
+                "Soma monetária dos trechos; a evidência é avaliada em cada trecho. "
+                "Não representa perda recuperável ou economia verificada."
+            )
             for t in resumo["trechos"]:
                 icone, rotulo, _ = ESTADO.get(t["situacao"], ESTADO[None])
                 caixa.caption(md(f"{icone} {data(t['inicio'])} a {data(t['fim'])}: {rotulo}"))
