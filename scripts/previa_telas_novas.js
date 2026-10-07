@@ -1158,7 +1158,7 @@ function blocoMensal() {
   if (sel.mes === "2026-09") {
     if (!ac.mesFechado) {
       acoes = `<div class="linha-botoes"><button class="botao" data-acao="mes-previa">Ver prévia do mês</button><button class="botao primario" data-acao="mes-aprovar">Aprovar fechamento do mês</button></div>${erroDe("mes")}`;
-      if (estado.mesPrevia) acoes += `<div class="alerta info">${icone("busca")}<div>Prévia: nada foi gravado. Ao aprovar, estes resultados ficam no histórico.</div></div>${tabela(["Trecho", "Resultado", "Consumido", "Diferença"], MEN.previas.map((p) => [p.periodo, p.frase, p.consumido, p.diferenca].map(e)), [2, 3])}`;
+      if (estado.mesPrevia) acoes += `<div class="alerta info">${icone("busca")}<div>Prévia: nada foi gravado. Ao aprovar, estes resultados ficam no histórico.</div></div>${tabela(["Trecho", "Resultado", "Consumido", "Diferença"], MEN.previas.map((p) => [p.periodo, (ESTADO_DESVIO[p.situacao] || [0, "Sem conta (lacuna)"])[1], p.consumido, p.diferenca].map(e)), [2, 3])}`;
     } else {
       acoes = `<div class="alerta ok">${icone("ok")}<div>Setembro aprovado por ${e(autorDe(ac.mesFechado.autor))} em ${quando(ac.mesFechado.em)}. Consumido ${e(MEN.resumo.consumido)}, esperado ${e(MEN.resumo.esperado)}, diferença ${e(MEN.resumo.diferenca)}.</div></div>
         <details><summary>Revisar o mês (quando um dado antigo for corrigido)</summary><p class="legenda">No app: se um registro do mês for corrigido depois da aprovação, o mês aparece como "Revisar". A revisão pede um motivo e gera uma nova versão só dos trechos afetados; a versão antiga fica no histórico.</p></details>`;
@@ -1169,7 +1169,7 @@ function blocoMensal() {
     <p class="legenda">Cada período entre medições de estoque pertence ao mês em que termina. Os meses são fechados na ordem; um trecho sem dados vira lacuna registrada, nunca consumo inventado.</p>
     ${tabela(["Mês", "Situação", "O que falta"], linhas)}
     <label class="campo" style="max-width:320px">Mês<select id="mes-sel">${MEN.meses.map((m) => `<option value="${m.mes}" ${m.mes === sel.mes ? "selected" : ""}>${e(m.rotulo)}</option>`).join("")}</select></label>
-    <p>${selo(COR_MES[est], rotuloEstadoMes(sel))} ${md(sel.frase)}</p>
+    <p>${selo(COR_MES[est], rotuloEstadoMes(sel))} ${md(est === "fechado" ? "Mês fechado: 3 trecho(s) gravados, 1 deles sem conta (lacuna registrada)." : sel.frase)}</p>
     ${sel.cobertura.length ? `<ul>${sel.cobertura.map((x) => `<li>${e(x)}</li>`).join("")}</ul>` : ""}
     ${sel.trechos.length ? tabela(["Trecho", "Períodos", "Conta"], sel.trechos.map((t) => [t.periodo, String(t.periodos), t.valido ? "com conta" : "lacuna: " + t.motivo].map(e)), [1]) : ""}
     ${acoes}`;
