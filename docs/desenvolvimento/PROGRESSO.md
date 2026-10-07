@@ -414,3 +414,11 @@ Pedido do Adryan: continuar as cinco melhorias propostas pelo Codex, começando 
 ## Prévia online atualizada — 06/10/2026
 
 - A prévia interativa (`scripts/gerar_previa.py`) mostra as melhorias D101–D104 com os números calculados pelo motor: o quadro da conclusão financeira no Financeiro e em Fechamentos; o percurso de cinco passos em Minha planta e o marcador de passo nas telas da planta; o Financeiro com "Dados desta sessão" e "Fechamentos da planta" (linha do tempo, conta salva e entrega do fechamento); "Análise temporária" × "Dados salvos da planta". Republicada no mesmo endereço.
+
+## Menu compacto — 07/10/2026
+
+- **D105.** O menu lateral passou de seis entradas + "Mais ferramentas" (onze telas escondidas) para **cinco seções**: Início, Minha planta, Análise, Financeiro e Validação. As telas de cada seção viram **abas no topo da tela** (por exemplo, Minha planta › Painel, Dados, Fechamentos, Ações, Histórico). A seção aberta fica destacada no menu.
+- Nenhuma funcionalidade saiu: as 17 telas, os cálculos e os links antigos continuam iguais; só mudou a forma de chegar a elas (`app/navegacao.py`, `app/main.py`). No celular, as abas quebram em linhas e o topo ganhou espaço para o botão do menu.
+- Testes: `tests/test_navegacao_simples.py` (4): todas as rotas registradas uma única vez, cada tela numa seção, menu com até cinco entradas e, em cada seção, as abas das telas irmãs com a seção destacada.
+- Guias (`ENTENDA_A_EULER.md`, `PASSEIO_PELAS_TELAS.md`) e a prévia online atualizados para o menu novo; prévia republicada no mesmo endereço. Prints: `prints/15_menu_compacto_painel.png` e `prints/16_menu_compacto_celular.png`.
+

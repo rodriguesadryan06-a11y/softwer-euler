@@ -8,7 +8,7 @@ import os
 import estado
 import streamlit as st
 from componentes import ICONE, LOGO, MARCA, aplicar_estilo, rodape
-from navegacao import menu_lateral, todas_as_paginas
+from navegacao import abas_da_secao, menu_lateral, todas_as_paginas
 
 import euler
 
@@ -22,11 +22,13 @@ st.logo(str(LOGO), icon_image=str(MARCA), size="large")
 aplicar_estilo()
 
 paginas = [
-    st.Page(caminho, title=titulo, icon=f":material/{icone}:", default=i == 0)
+    (st.Page(caminho, title=titulo, icon=f":material/{icone}:", default=i == 0), caminho)
     for i, (caminho, titulo, icone) in enumerate(todas_as_paginas())
 ]
-navegacao = st.navigation(paginas, position="hidden")
-menu_lateral(st)
+navegacao = st.navigation([pagina for pagina, _ in paginas], position="hidden")
+atual = next(c for pagina, c in paginas if pagina.url_path == navegacao.url_path)
+menu_lateral(st, atual)
+abas_da_secao(st, atual)
 # As telas não usam st.stop(): o rodapé de segurança precisa aparecer sempre.
 navegacao.run()
 rodape()

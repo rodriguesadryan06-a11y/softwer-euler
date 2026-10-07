@@ -52,7 +52,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 a:focus-visible, button:focus-visible, input:focus-visible {{
   outline: 2px solid var(--euler-ref-texto); outline-offset: 3px; }}
 @media(max-width:640px) {{
-  .stMainBlockContainer {{ padding: 1.25rem 1rem 2rem; }}
+  .stMainBlockContainer {{ padding: 3.4rem 1rem 2rem; }} /* espaço para o botão do menu */
   .st-key-cartao-saude-selo {{ padding: 1rem; }}
   .st-key-euler-abertura {{ padding: 1.25rem !important; }}
 }}
@@ -64,6 +64,9 @@ a:focus-visible, button:focus-visible, input:focus-visible {{
   color: #000000; }}
 [data-testid="stBaseButton-primary"] p {{ color: inherit; }}
 [data-testid="stBaseButton-secondary"]:hover {{ border-color: #6B6B6B; color: #FFFFFF; }}
+
+/* Abas da seção (telas irmãs) logo acima do cabeçalho */
+.st-key-euler-abas {{ margin-bottom: .4rem; row-gap: .15rem; }}
 
 /* Cabeçalho de cada tela */
 .st-key-euler-cabecalho {{ gap: .2rem; padding-bottom: 1rem; margin-bottom: .35rem;

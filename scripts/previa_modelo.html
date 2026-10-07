@@ -44,11 +44,13 @@ button, select { font-family: inherit; }
 .nav button:focus-visible, .botao:focus-visible, .chip:focus-visible, .aba:focus-visible,
 .celula:focus-visible, select:focus-visible { outline: 2px solid #A8C7FA; outline-offset: 2px; }
 .nav svg { width: 17px; height: 17px; flex: none; color: var(--suave); }
-.nav details.mais { border: 1px solid #3A3A3A; border-radius: 8px; padding: 2px; margin-top: 10px; display: flex; flex-direction: column; gap: 2px; }
-.nav details.mais summary { padding: 7px 10px; border-radius: 7px; font-size: 14.5px; color: var(--suave); }
-.nav details.mais summary:hover { background: #222222; }
-.nav details.mais summary:focus-visible { outline: 2px solid #A8C7FA; outline-offset: 2px; }
-.nav details.mais[open] summary { margin-bottom: 0; }
+.abas-secao { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-bottom: -6px; }
+.abas-secao button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px; border-radius: 7px; color: var(--suave); font-size: 14px; }
+.abas-secao button:hover { background: #222222; color: var(--texto); }
+.abas-secao button[aria-current="page"] { background: #2B2B2B; color: var(--texto); font-weight: 600; }
+.abas-secao button:focus-visible { outline: 2px solid #A8C7FA; outline-offset: 2px; }
+.abas-secao svg { width: 15px; height: 15px; flex: none; }
 .lateral .rodape-lateral { margin-top: auto; font-size: 13px; color: var(--fraco);
   border-top: 1px solid #262626; padding: 14px 8px 0; }
 .principal { min-width: 0; padding-inline: 32px; padding-block: 26px 40px; }
@@ -223,10 +225,7 @@ ol.verificar { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
   .lateral { position: static; height: auto; padding: 16px; }
   .nav { flex-direction: row; flex-wrap: wrap; }
   .nav h6 { display: none; }
-  .nav details.mais { flex-basis: 100%; }
-  .nav details.mais[open] { flex-direction: row; flex-wrap: wrap; }
-  .nav details.mais[open] summary { flex-basis: 100%; }
-  .lateral .rodape-lateral { display: none; }
+        .lateral .rodape-lateral { display: none; }
   .principal { padding-inline: 16px; }
   .g2, .g3 { grid-template-columns: minmax(0, 1fr); }
   .abertura { padding: 26px 22px; }
@@ -264,8 +263,7 @@ ol.verificar { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
 "use strict";
 const D = JSON.parse(document.getElementById("dados").textContent);
 const estado = { tela: "inicio", ato: "1", r0: D.padrao[0], r: D.padrao[1], a: D.padrao[2], b: D.padrao[3],
-  serie: null, diasAno: null, filtro: new Set(["Erro", "Atenção", "Informação"]), gerado: new Set(),
-  maisAberto: false };
+  serie: null, diasAno: null, filtro: new Set(["Erro", "Atenção", "Informação"]), gerado: new Set() };
 // os dois atos têm os mesmos registros de operação (D62): mesmos períodos e séries
 const A = () => D.atos[estado.ato];
 const N = D.atos["1"].periodos.length;
@@ -308,34 +306,35 @@ const ICONES = {
 };
 const icone = (nome, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${ICONES[nome]}</svg>`;
 
-// mesmo menu do app (app/navegacao.py): seis entradas e o resto em "Mais ferramentas"
-const PRINCIPAIS = [
-  { id: "inicio", titulo: "Início", icone: "inicio" },
-  { id: "painel", titulo: "Minha planta", icone: "painel" },
-  { id: "saude", titulo: "Análise", icone: "saude" },
-  { id: "financeiro", titulo: "Financeiro", icone: "financeiro" },
-  { id: "acoes", titulo: "Ações", icone: "acoes" },
-  { id: "atualizar", titulo: "Dados", icone: "atualizar" },
-];
-const COMPLEMENTARES = [
-  ["Aprofundar a análise", [
-    { id: "investigacao", titulo: "Investigar uma mudança", icone: "investigacao" },
-    { id: "oportunidades", titulo: "Oportunidades", icone: "oportunidades" },
-    { id: "extrato", titulo: "Fornecedores", icone: "extrato" },
-    { id: "limites", titulo: "Qualidade e limites dos dados", icone: "limites" },
-    { id: "relatorio", titulo: "Relatório da análise", icone: "relatorio" },
-  ]],
-  ["Histórico e cadastro", [
+// mesmo menu do app (app/navegacao.py): cinco seções; as telas de cada seção viram abas no topo
+const SECOES = [
+  { titulo: "Início", icone: "inicio", telas: [{ id: "inicio", titulo: "Início", icone: "inicio" }] },
+  { titulo: "Minha planta", icone: "painel", telas: [
+    { id: "painel", titulo: "Painel", icone: "painel" },
+    { id: "atualizar", titulo: "Dados", icone: "atualizar" },
     { id: "fechamentos", titulo: "Fechamentos", icone: "fechamentos" },
-    { id: "plantas", titulo: "Plantas e histórico", icone: "plantas" },
-    { id: "importar", titulo: "Analisar um arquivo avulso", icone: "importar" },
-  ]],
-  ["Validação e referências", [
+    { id: "acoes", titulo: "Ações", icone: "acoes" },
+    { id: "plantas", titulo: "Histórico", icone: "plantas" },
+  ] },
+  { titulo: "Análise", icone: "saude", telas: [
+    { id: "saude", titulo: "Saúde da caldeira", icone: "saude" },
+    { id: "investigacao", titulo: "Investigar", icone: "investigacao" },
+    { id: "oportunidades", titulo: "Oportunidades", icone: "oportunidades" },
+    { id: "limites", titulo: "Qualidade e limites", icone: "limites" },
+    { id: "relatorio", titulo: "Relatório", icone: "relatorio" },
+    { id: "importar", titulo: "Arquivo avulso", icone: "importar" },
+  ] },
+  { titulo: "Financeiro", icone: "financeiro", telas: [
+    { id: "financeiro", titulo: "Conta do período", icone: "financeiro" },
+    { id: "extrato", titulo: "Fornecedores", icone: "extrato" },
+  ] },
+  { titulo: "Validação", icone: "publicos", telas: [
     { id: "publicos", titulo: "Testes com dados reais", icone: "publicos" },
     { id: "diagnostico", titulo: "Diagnóstico de evidências", icone: "diagnostico" },
     { id: "calculadora", titulo: "Calculadora de referência", icone: "calculadora" },
-  ]],
+  ] },
 ];
+const secaoDe = (id) => SECOES.find((s) => s.telas.some((t) => t.id === id)) || SECOES[0];
 
 function cabecalho(sobre, titulo, resumo, comDados = true) {
   return `<header class="cabecalho">${sobre ? `<div class="sobrelinha">${e(sobre)}</div>` : ""}
@@ -679,10 +678,12 @@ function graficoSemanal() {
 
 /* ------------------------------------------------------------------ montagem */
 function montarNav() {
-  const botao = (t) => `<button data-ir="${t.id}" ${t.id === estado.tela ? 'aria-current="page"' : ""}>${icone(t.icone)}${e(t.titulo)}</button>`;
-  document.getElementById("nav").innerHTML = PRINCIPAIS.map(botao).join("")
-    + `<details class="mais" id="mais-ferramentas" ${estado.maisAberto ? "open" : ""}><summary>Mais ferramentas</summary>`
-    + COMPLEMENTARES.map(([g, l]) => `<h6>${e(g)}</h6>${l.map(botao).join("")}`).join("") + "</details>";
+  const aberta = secaoDe(estado.tela);
+  // a seção aberta aponta para a tela atual (fica destacada); as outras abrem na primeira tela
+  document.getElementById("nav").innerHTML = SECOES.map((s) => {
+    const destino = s === aberta ? estado.tela : s.telas[0].id;
+    return `<button data-ir="${destino}" ${s === aberta ? 'aria-current="page"' : ""}>${icone(s.icone)}${e(s.titulo)}</button>`;
+  }).join("");
   // nome de quem registra: só nas telas que gravam algo, como no app
   document.getElementById("nome-lateral").hidden = !ACOMP.includes(estado.tela);
   const campo = document.getElementById("autor");
@@ -695,6 +696,12 @@ function faixaPrevia() {
     <span class="atalhos"><span>Dados:</span>${["1", "2"].map((a) => `<button class="chip" data-ato="${a}" aria-pressed="${estado.ato === a}">${e(NOME_ATO[a])}</button>`).join("")}</span></div>`;
 }
 
+function abasDaSecao() { // telas irmãs da seção aberta, como no app
+  const { telas } = secaoDe(estado.tela);
+  if (telas.length < 2) return "";
+  return `<nav class="abas-secao" aria-label="Telas desta seção">${telas.map((t) => `<button data-ir="${t.id}" ${t.id === estado.tela ? 'aria-current="page"' : ""}>${icone(t.icone)}${e(t.titulo)}</button>`).join("")}</nav>`;
+}
+
 let ultimaTela = null;
 function mostrar(rolarParaTopo = false) {
   montarNav();
@@ -703,7 +710,7 @@ function mostrar(rolarParaTopo = false) {
   // as seções recolhidas que a pessoa abriu continuam abertas quando a mesma tela é redesenhada
   const abertas = estado.tela === ultimaTela
     ? new Set([...tela.querySelectorAll("details[open] > summary")].map((s) => s.textContent)) : new Set();
-  tela.innerHTML = `<div class="conteudo tela-nova">${RENDER[estado.tela]()}</div>`;
+  tela.innerHTML = `<div class="conteudo tela-nova">${abasDaSecao()}${RENDER[estado.tela]()}</div>`;
   tela.querySelectorAll("details > summary").forEach((s) => { if (abertas.has(s.textContent)) s.parentElement.open = true; });
   ultimaTela = estado.tela;
   if (rolarParaTopo) window.scrollTo({ top: 0 });
@@ -712,8 +719,6 @@ function mostrar(rolarParaTopo = false) {
 
 function ir(tela) {
   estado.tela = tela;
-  // ao chegar numa tela de "Mais ferramentas", o grupo aparece aberto no menu
-  if (COMPLEMENTARES.some(([, l]) => l.some((t) => t.id === tela))) estado.maisAberto = true;
   ac.erro = null;
   ac.abriu = null;
   try { history.replaceState(null, "", "#" + tela); } catch (_) { /* sem histórico na prévia */ }
@@ -741,9 +746,6 @@ document.addEventListener("submit", (ev) => {
 document.addEventListener("input", (ev) => {
   if (ev.target.id === "autor") { ac.autor = ev.target.value; guardar(); }
 });
-document.addEventListener("toggle", (ev) => {
-  if (ev.target.id === "mais-ferramentas") estado.maisAberto = ev.target.open;
-}, true);
 document.addEventListener("click", (ev) => {
   const alvo = ev.target.closest("[data-ato],[data-investigar],[data-ir],[data-serie],[data-atalho],[data-celula],[data-filtro],#gerar");
   if (!alvo) return;
@@ -818,6 +820,5 @@ document.getElementById("rodape").textContent = D.textos.rodape;
 document.getElementById("rodape-lateral").textContent = "EULER · prévia interativa · dados sintéticos em uso";
 const inicial = (location.hash || "").slice(1);
 if (RENDER[inicial]) estado.tela = inicial;
-if (COMPLEMENTARES.some(([, l]) => l.some((t) => t.id === estado.tela))) estado.maisAberto = true;
 mostrar();
 </script>
